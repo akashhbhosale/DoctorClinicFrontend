@@ -67,7 +67,7 @@ export default function Login() {
             <input
               id="password"
               type={passwordVisible ? "text" : "password"}
-              placeholder="Enter your password"
+              placeholder="Enter your password 5 characters"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="p-2 border rounded w-full"
