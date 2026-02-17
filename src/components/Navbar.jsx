@@ -5,27 +5,17 @@ import { Menu, X, LogOut, ChevronDown } from "lucide-react";
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [showPatients, setShowPatients] = useState(false);
-  const [patientSearch, setPatientSearch] = useState("");
 
   const navigate = useNavigate();
   const location = useLocation();
   const patientsRef = useRef(null);
+  const [globalSearch, setGlobalSearch] = useState("");
 
   /* ================= Logout ================= */
   const handleLogout = () => {
     localStorage.removeItem("token");
     setIsOpen(false);
     navigate("/login");
-  };
-
-  /* ================= Patient Search ================= */
-  const handlePatientSearch = (e) => {
-    e.preventDefault();
-    if (!patientSearch.trim()) return;
-
-    console.log("Search patient:", patientSearch);
-    // 🔜 connect backend later
-    // navigate(`/patients/search?q=${patientSearch}`);
   };
 
   /* ================= Active Styles ================= */
@@ -48,6 +38,18 @@ export default function Navbar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  /* ================= Global Search================= */
+  const handleGlobalSearch = (e) => {
+    e.preventDefault();
+
+    const trimmed = globalSearch.trim();
+    if (!trimmed) return;
+
+    navigate(`/patients?search=${encodeURIComponent(trimmed)}`);
+
+    setGlobalSearch(""); // optional clear input
+  };
+
   return (
     <nav className="bg-blue-900 text-white shadow-md">
       <div className="w-full px-2 sm:px-4 lg:px-6">
@@ -65,15 +67,22 @@ export default function Navbar() {
           {/* ================= Desktop Menu ================= */}
           <div className="hidden md:flex items-center space-x-6 text-lg font-medium">
             {/* Patient Search */}
-            <form onSubmit={handlePatientSearch}>
+            <form onSubmit={handleGlobalSearch} className="flex items-center">
               <input
                 type="text"
-                placeholder="Search patient"
-                value={patientSearch}
-                onChange={(e) => setPatientSearch(e.target.value)}
-                className="px-4 py-1.5 rounded-full text-black text-sm w-60
-                           focus:outline-none focus:ring-2 focus:ring-red-500"
+                placeholder="Search patient (Name / ABHA / Mobile)"
+                value={globalSearch}
+                onChange={(e) => setGlobalSearch(e.target.value)}
+                className="px-4 py-1.5 rounded-l-full text-black text-sm w-60
+               focus:outline-none focus:ring-2 focus:ring-red-500"
               />
+
+              <button
+                type="submit"
+                className="bg-red-600 px-4 py-1.5 rounded-r-full hover:bg-red-700"
+              >
+                🔍
+              </button>
             </form>
 
             {/* Patients Dropdown */}
@@ -157,13 +166,15 @@ export default function Navbar() {
       {/* ================= Mobile Dropdown ================= */}
       {isOpen && (
         <div className="md:hidden bg-blue-500 px-4 pb-4 space-y-3 text-lg font-medium">
-          <input
-            type="text"
-            placeholder="Search patient"
-            value={patientSearch}
-            onChange={(e) => setPatientSearch(e.target.value)}
-            className="w-full px-4 py-2 rounded-lg text-black"
-          />
+          <form onSubmit={handleGlobalSearch}>
+            <input
+              type="text"
+              placeholder="Search by Name, ABHA ID or Mobile"
+              value={globalSearch}
+              onChange={(e) => setGlobalSearch(e.target.value)}
+              className="w-full px-4 py-2 rounded-lg text-black"
+            />
+          </form>
 
           <NavLink
             to="/patients"
@@ -172,7 +183,7 @@ export default function Navbar() {
           >
             Patients
           </NavLink>
-          
+
           <NavLink
             to="/patients/new"
             className={navClass}
