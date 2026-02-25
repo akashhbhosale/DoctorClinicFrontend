@@ -162,21 +162,45 @@ export default function AllPatients() {
                     <td className="px-6 py-3">{patient.phoneNo}</td>
                     <td className="px-6 py-3">{patient.gender}</td>
                     <td className="px-6 py-3 flex gap-2">
-                      <button className="text-blue-600 hover:underline">
-                        View
-                      </button>
-                      <button className="text-green-600 hover:underline">
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => {
-                          setSelectedPatient(patient);
-                          setIsModalOpen(true);
-                        }}
-                        className="text-red-600 hover:underline"
-                      >
-                        Delete
-                      </button>
+                      <td className="flex gap-2">
+                        {/* View Button */}
+                        <button
+                          onClick={() => navigate(`/patients/${patient.id}`)}
+                          className="px-3 py-1 text-sm rounded-md 
+             bg-blue-100 text-blue-700 
+             hover:bg-blue-200 
+             transition duration-200"
+                        >
+                          View
+                        </button>
+
+                        {/* Edit Button */}
+                        <button
+                          onClick={() =>
+                            navigate(`/patients/edit/${patient.id}`)
+                          }
+                          className="px-3 py-1 text-sm rounded-md 
+             bg-green-100 text-green-700 
+             hover:bg-green-200 
+             transition duration-200"
+                        >
+                          Edit
+                        </button>
+
+                        {/* Delete Button */}
+                        <button
+                          onClick={() => {
+                            setSelectedPatient(patient);
+                            setIsModalOpen(true);
+                          }}
+                          className="px-3 py-1 text-sm rounded-md 
+             bg-red-100 text-red-700 
+             hover:bg-red-200 
+             transition duration-200"
+                        >
+                          Delete
+                        </button>
+                      </td>
                     </td>
                   </tr>
                 ))}

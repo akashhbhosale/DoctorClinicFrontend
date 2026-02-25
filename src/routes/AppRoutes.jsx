@@ -8,11 +8,10 @@ import Encounter from "../pages/Encounter.jsx";
 import Assessment from "../pages/Assessment.jsx";
 import History from "../pages/History.jsx";
 import Nursing from "../pages/Nursing.jsx";
-
-// ✅ Patient pages (YOU MUST HAVE THESE FILES)
 import PatientsList from "../pages/Patients/AllPatients.jsx";
 import AddPatient from "../pages/Patients/AddPatient.jsx";
-
+import ViewPatient from "../pages/Patients/ViewPatient";
+import EditPatient from "../pages/Patients/EditPatient";
 import ProtectedRoute from "../components/ProtectedRoute.jsx";
 import AppLayout from "../layouts/AppLayout.jsx";
 
@@ -38,9 +37,11 @@ export default function AppRoutes() {
         <Route path="/history" element={<History />} />
         <Route path="/nursing" element={<Nursing />} />
 
-        {/* 🔥 PATIENT ROUTES (THIS WAS MISSING) */}
+        {/* 🔥 PATIENT ROUTES */}
         <Route path="/patients" element={<PatientsList />} />
         <Route path="/patients/new" element={<AddPatient />} />
+        <Route path="/patients/:id" element={<ViewPatient />} />
+        <Route path="/patients/edit/:id" element={<EditPatient />} />
       </Route>
 
       {/* Fallback */}
