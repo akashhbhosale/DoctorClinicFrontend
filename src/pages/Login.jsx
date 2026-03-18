@@ -12,17 +12,20 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setMessage("");
-
+  
     try {
       const res = await http.post("/api/auth/login", { username, password });
-      const { token, message } = res.data || {};
-
-      if (token) {
+  
+      const { token, doctor, message } = res.data || {};
+  
+      if (token && doctor) {
         localStorage.setItem("token", token);
+        localStorage.setItem("doctor", JSON.stringify(doctor));   // ✅ STORE DOCTOR
+  
         setMessage(message || "Login successful");
         navigate("/dashboard");
       } else {
-        setMessage("Login failed: no token returned");
+        setMessage("Login failed: incomplete response");
       }
     } catch (err) {
       setMessage(err?.response?.data?.message || "Login failed");

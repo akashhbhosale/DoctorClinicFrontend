@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import SectionHeader from "../../components/SectionHeader";
+import { usePatient } from "../../context/PatientContext";
 
 export default function AddPatient() {
   const navigate = useNavigate();
+  const { setActivePatient } = usePatient();
 
   const [patient, setPatient] = useState({
     abhaId: "",
@@ -120,7 +122,10 @@ export default function AddPatient() {
       }
 
       alert("Patient saved successfully ✅");
-      navigate("/patients");
+      //  Update context
+      setActivePatient(data);
+      // Navigate to that patient page
+      navigate(`/patients/${data.id}`);
     } catch (error) {
       console.error("Error saving patient:", error);
       alert("Server error. Please try again.");

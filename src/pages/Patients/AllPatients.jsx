@@ -22,13 +22,17 @@ export default function AllPatients() {
   const fetchPatients = async () => {
     try {
       const token = localStorage.getItem("token");
-      let url = "";
-      const trimmedSearch = search.trim();
+      const params = new URLSearchParams(location.search);
+      const searchParam = params.get("search") || "";
 
-      if (trimmedSearch === "") {
+      let url = "";
+
+      if (searchParam.trim() === "") {
         url = `http://localhost:8080/api/patients?page=${page}&size=${size}`;
       } else {
-        url = `http://localhost:8080/api/patients/search?query=${trimmedSearch}&page=${page}&size=${size}`;
+        url = `http://localhost:8080/api/patients/search?query=${encodeURIComponent(
+          searchParam
+        )}&page=${page}&size=${size}`;
       }
 
       const response = await fetch(url, {
@@ -53,7 +57,7 @@ export default function AllPatients() {
 
   useEffect(() => {
     fetchPatients();
-  }, [page, size, search]);
+  }, [page, size, location.search]);
 
   const handleDelete = async (id) => {
     if (!window.confirm("Are you sure you want to delete this patient?"))
@@ -119,7 +123,12 @@ export default function AllPatients() {
                 type="text"
                 placeholder="Search by Name, ABHA or Mobile..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  navigate(
+                    `/patients?search=${encodeURIComponent(e.target.value)}`
+                  );
+                }}
                 className="w-full px-4 py-2 rounded-lg border border-slate-300 
                  focus:ring-2 focus:ring-blue-500 focus:outline-none"
               />
@@ -161,15 +170,15 @@ export default function AllPatients() {
                     <td className="px-6 py-3">{patient.fullName}</td>
                     <td className="px-6 py-3">{patient.phoneNo}</td>
                     <td className="px-6 py-3">{patient.gender}</td>
-                    <td className="px-6 py-3 flex gap-2">
-                      <td className="flex gap-2">
+                    <td className="px-6 py-3">
+                      <div className="flex gap-2">
                         {/* View Button */}
                         <button
                           onClick={() => navigate(`/patients/${patient.id}`)}
                           className="px-3 py-1 text-sm rounded-md 
-             bg-blue-100 text-blue-700 
-             hover:bg-blue-200 
-             transition duration-200"
+      bg-blue-100 text-blue-700 
+      hover:bg-blue-200 
+      transition duration-200"
                         >
                           View
                         </button>
@@ -180,9 +189,9 @@ export default function AllPatients() {
                             navigate(`/patients/edit/${patient.id}`)
                           }
                           className="px-3 py-1 text-sm rounded-md 
-             bg-green-100 text-green-700 
-             hover:bg-green-200 
-             transition duration-200"
+      bg-green-100 text-green-700 
+      hover:bg-green-200 
+      transition duration-200"
                         >
                           Edit
                         </button>
@@ -194,13 +203,13 @@ export default function AllPatients() {
                             setIsModalOpen(true);
                           }}
                           className="px-3 py-1 text-sm rounded-md 
-             bg-red-100 text-red-700 
-             hover:bg-red-200 
-             transition duration-200"
+      bg-red-100 text-red-700 
+      hover:bg-red-200 
+      transition duration-200"
                         >
                           Delete
                         </button>
-                      </td>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -234,6 +243,8 @@ export default function AllPatients() {
           </div>
         </div>
       </div>
+
+      {/* Confirmation modal for delete*/}
       <ConfirmModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}

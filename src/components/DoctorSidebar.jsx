@@ -55,53 +55,52 @@ export default function DoctorSidebar() {
       </div>
     );
   }
-
+  console.log(doctor);
   /* -------- Main UI -------- */
   return (
     <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-      
       <SectionHeader
         title="Doctor Information"
         variant="compact"
         align="center"
       />
-  
+
       <div className="p-6 space-y-4 text-sm">
-  
         <div>
           <span className="text-gray-500 font-medium">Name</span>
           <p className="text-gray-900 font-semibold text-base mt-1">
-            {doctor.username}
+            {doctor?.fullName}
           </p>
         </div>
-  
+
+       
+        <div>
+          <span className="text-gray-500 font-medium">Email</span>
+          <p className="text-gray-900 font-semibold text-base mt-1">
+            {doctor.email}
+          </p>
+        </div>
+
         <div className="flex justify-between">
-          <span className="text-gray-500 font-medium">
-            Registration No
-          </span>
+          <span className="text-gray-500 font-medium">Registration No</span>
           <span className="text-gray-900 font-semibold">
             {doctor.registrationNo}
           </span>
         </div>
-  
+
         <div className="flex justify-between">
-          <span className="text-gray-500 font-medium">
-            Qualification
-          </span>
+          <span className="text-gray-500 font-medium">Qualification</span>
           <span className="text-gray-900 font-semibold">
             {doctor.qualification}
           </span>
         </div>
-  
+
         <div className="flex justify-between">
-          <span className="text-gray-500 font-medium">
-            Speciality
-          </span>
+          <span className="text-gray-500 font-medium">Speciality</span>
           <span className="text-gray-900 font-semibold">
             {doctor.speciality}
           </span>
         </div>
-  
       </div>
     </div>
   );

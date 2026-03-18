@@ -12,8 +12,10 @@ import PatientsList from "../pages/Patients/AllPatients.jsx";
 import AddPatient from "../pages/Patients/AddPatient.jsx";
 import ViewPatient from "../pages/Patients/ViewPatient";
 import EditPatient from "../pages/Patients/EditPatient";
+
 import ProtectedRoute from "../components/ProtectedRoute.jsx";
 import AppLayout from "../layouts/AppLayout.jsx";
+import PatientLayout from "../components/PatientLayout.jsx"; // ✅ FIXED IMPORT
 
 export default function AppRoutes() {
   return (
@@ -40,7 +42,13 @@ export default function AppRoutes() {
         {/* 🔥 PATIENT ROUTES */}
         <Route path="/patients" element={<PatientsList />} />
         <Route path="/patients/new" element={<AddPatient />} />
-        <Route path="/patients/:id" element={<ViewPatient />} />
+
+        {/* ✅ FIXED: Use PatientLayout */}
+        <Route path="/patients/:id" element={<PatientLayout />}>
+          <Route index element={<ViewPatient />} />
+          <Route path="history" element={<History />} />
+        </Route>
+
         <Route path="/patients/edit/:id" element={<EditPatient />} />
       </Route>
 
