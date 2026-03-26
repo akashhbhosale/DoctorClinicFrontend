@@ -1,4 +1,3 @@
-// src/routes/AppRoutes.jsx
 import { Routes, Route, Navigate } from "react-router-dom";
 
 import Login from "../pages/Login.jsx";
@@ -15,7 +14,7 @@ import EditPatient from "../pages/Patients/EditPatient";
 
 import ProtectedRoute from "../components/ProtectedRoute.jsx";
 import AppLayout from "../layouts/AppLayout.jsx";
-import PatientLayout from "../components/PatientLayout.jsx"; // ✅ FIXED IMPORT
+import PatientLayout from "../components/PatientLayout.jsx"; 
 
 export default function AppRoutes() {
   return (
@@ -47,8 +46,8 @@ export default function AppRoutes() {
         <Route path="/patients/:id" element={<PatientLayout />}>
           <Route index element={<ViewPatient />} />
           <Route path="history" element={<History />} />
+          <Route path="encounter" element={<Encounter />} />
         </Route>
-
         <Route path="/patients/edit/:id" element={<EditPatient />} />
       </Route>
 

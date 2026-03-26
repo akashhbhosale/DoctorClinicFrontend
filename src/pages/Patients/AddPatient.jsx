@@ -124,7 +124,7 @@ export default function AddPatient() {
       alert("Patient saved successfully ✅");
       //  Update context
       setActivePatient(data);
-      // Navigate to that patient page
+      // 🔥 Navigate to that patient page
       navigate(`/patients/${data.id}`);
     } catch (error) {
       console.error("Error saving patient:", error);
