@@ -14,6 +14,11 @@ import {
   deleteEncounterProcedure,
   getChiefComplaints,
   getEncounterDetails,
+  getIcdCodes,
+  getProcedures,
+  getProcedureSites,
+  getProcedureDevices,
+  getProcedureMethods,
 } from "../services/encounterApi";
 
 const selectStyles = {
@@ -41,6 +46,7 @@ export default function Encounter() {
 
   const patientId = activePatient?.id || id;
   console.log("Patient ID:", patientId);
+  const [loading, setLoading] = useState(false);
 
   const [encounterId, setEncounterId] = useState(null);
 
@@ -48,9 +54,25 @@ export default function Encounter() {
   const [days, setDays] = useState("");
   const [complaints, setComplaints] = useState([]);
 
+  const [diagnosisOptions, setDiagnosisOptions] = useState([]);
   const [diagnosisType, setDiagnosisType] = useState(null);
   const [diagnosis, setDiagnosis] = useState(null);
   const [diagnoses, setDiagnoses] = useState([]);
+  const [icdCode, setIcdCode] = useState(null);
+
+  const diagnosisNameOptions = diagnosisOptions.map((item) => ({
+    value: item.value,
+    label: item.diagnosisLabel,
+    code: item.code,
+    description: item.description,
+  }));
+
+  const icdCodeOptions = diagnosisOptions.map((item) => ({
+    value: item.value,
+    label: item.icdLabel,
+    code: item.code,
+    description: item.description,
+  }));
 
   const [procedure, setProcedure] = useState(null);
   const [site, setSite] = useState(null);
@@ -59,39 +81,17 @@ export default function Encounter() {
   const [laterality, setLaterality] = useState(null);
   const [priority, setPriority] = useState(null);
   const [procedures, setProcedures] = useState([]);
-
   const [notes, setNotes] = useState("");
   const [complaintOptions, setComplaintOptions] = useState([]);
+
+  const [procedureOptions, setProcedureOptions] = useState([]);
+  const [siteOptions, setSiteOptions] = useState([]);
+  const [deviceOptions, setDeviceOptions] = useState([]);
+  const [methodOptions, setMethodOptions] = useState([]);
 
   const diagnosisTypeOptions = [
     { value: "PROVISIONAL", label: "Provisional" },
     { value: "FINAL", label: "Final" },
-  ];
-
-  const diagnosisOptions = [
-    { value: 1, label: "Activities of Daily Living Alteration", code: "O38.1" },
-    { value: 2, label: "Acute Pain", code: "Q63.1" },
-    { value: 3, label: "Anxiety", code: "P40.0" },
-  ];
-
-  const procedureOptions = [
-    { value: 7003, label: "Ultrasound scan of elbow" },
-    { value: 7004, label: "Nebulization" },
-  ];
-
-  const siteOptions = [
-    { value: 1, label: "Head" },
-    { value: 2, label: "Chest" },
-  ];
-
-  const deviceOptions = [
-    { value: 1, label: "Syringe" },
-    { value: 2, label: "Nebuliser" },
-  ];
-
-  const methodOptions = [
-    { value: 1, label: "Surgical" },
-    { value: 2, label: "Manual" },
   ];
 
   const lateralityOptions = [
@@ -162,10 +162,13 @@ export default function Encounter() {
 
   const removeComplaint = async (id) => {
     try {
+      setLoading(true);
       await deleteEncounterComplaint(id);
-      setComplaints(complaints.filter((item) => item.id !== id));
+      await loadEncounterDetails(encounterId);
     } catch (error) {
       console.error("Delete complaint error:", error?.response?.data || error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -187,23 +190,82 @@ export default function Encounter() {
           id: res.data.id,
           diagnosisType: diagnosisType.label,
           diagnosis: diagnosis.label,
-          code: diagnosis.code,
+          code: icdCode?.label || diagnosis.code,
         },
       ]);
 
       setDiagnosisType(null);
       setDiagnosis(null);
+      setIcdCode(null);
+
+      await loadEncounterDetails(encounterId);
     } catch (error) {
       console.error("Add diagnosis error:", error?.response?.data || error);
     }
   };
 
+  // To load diagnosis from backend list
+  const loadIcdCodes = async (search = "") => {
+    try {
+      const res = await getIcdCodes(search, 0, 20);
+
+      const options = res.data.content.map((item) => ({
+        value: item.id,
+        diagnosisLabel: item.description,
+        icdLabel: item.code,
+        code: item.code,
+        description: item.description,
+      }));
+
+      setDiagnosisOptions(options);
+    } catch (error) {
+      console.error("Load ICD codes error:", error?.response?.data || error);
+    }
+  };
+
+  // Use effect for Icd codes
+  useEffect(() => {
+    loadIcdCodes();
+  }, []);
+
+  // To handle diagnosis Method
+  const handleDiagnosisChange = (selected) => {
+    setDiagnosis(selected);
+
+    if (!selected) {
+      setIcdCode(null);
+      return;
+    }
+
+    const matchedCode = icdCodeOptions.find(
+      (item) => item.value === selected.value
+    );
+    setIcdCode(matchedCode || null);
+  };
+
+  const handleIcdCodeChange = (selected) => {
+    setIcdCode(selected);
+
+    if (!selected) {
+      setDiagnosis(null);
+      return;
+    }
+
+    const matchedDiagnosis = diagnosisNameOptions.find(
+      (item) => item.value === selected.value
+    );
+    setDiagnosis(matchedDiagnosis || null);
+  };
+
   const removeDiagnosis = async (id) => {
     try {
+      setLoading(true);
       await deleteEncounterDiagnosis(id);
-      setDiagnoses(diagnoses.filter((item) => item.id !== id));
+      await loadEncounterDetails(encounterId);
     } catch (error) {
       console.error("Delete diagnosis error:", error?.response?.data || error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -211,6 +273,8 @@ export default function Encounter() {
     if (!procedure || !priority || !encounterId) return;
 
     try {
+      setLoading(true);
+
       const payload = {
         encounterId,
         procedureId: procedure.value,
@@ -221,20 +285,7 @@ export default function Encounter() {
         priority: priority.value,
       };
 
-      const res = await addEncounterProcedure(payload);
-
-      setProcedures([
-        ...procedures,
-        {
-          id: res.data.id,
-          procedure: procedure.label,
-          site: site?.label || "-",
-          device: device?.label || "-",
-          method: method?.label || "-",
-          laterality: laterality?.label || "-",
-          priority: priority.label,
-        },
-      ]);
+      await addEncounterProcedure(payload);
 
       setProcedure(null);
       setSite(null);
@@ -242,19 +293,111 @@ export default function Encounter() {
       setMethod(null);
       setLaterality(null);
       setPriority(null);
+
+      await loadEncounterDetails(encounterId);
     } catch (error) {
       console.error("Add procedure error:", error?.response?.data || error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // To load procedures from backend
+  const loadProcedureOptions = async (search = "") => {
+    try {
+      const res = await getProcedures(search, 0, 20);
+
+      const options = res.data.content.map((item) => ({
+        value: item.id,
+        label: item.procedureName, // change if backend field name is different
+      }));
+
+      setProcedureOptions(options);
+    } catch (error) {
+      console.error("Load procedures error:", error?.response?.data || error);
     }
   };
 
   const removeProcedure = async (id) => {
     try {
+      setLoading(true);
       await deleteEncounterProcedure(id);
-      setProcedures(procedures.filter((item) => item.id !== id));
+      await loadEncounterDetails(encounterId);
     } catch (error) {
       console.error("Delete procedure error:", error?.response?.data || error);
+    } finally {
+      setLoading(false);
     }
   };
+
+  // Use effect to load procedures
+  useEffect(() => {
+    loadProcedureOptions();
+  }, []);
+
+  // load site options
+  const loadSiteOptions = async (search = "") => {
+    try {
+      const res = await getProcedureSites(search, 0, 20);
+
+      const options = res.data.content.map((item) => ({
+        value: item.id,
+        label: item.siteName,
+      }));
+
+      setSiteOptions(options);
+    } catch (error) {
+      console.error(
+        "Load procedure sites error:",
+        error?.response?.data || error
+      );
+    }
+  };
+
+  // To load devices fun
+  const loadDeviceOptions = async (search = "") => {
+    try {
+      const res = await getProcedureDevices(search, 0, 20);
+
+      const options = res.data.content.map((item) => ({
+        value: item.id,
+        label: item.deviceName,
+      }));
+
+      setDeviceOptions(options);
+    } catch (error) {
+      console.error(
+        "Load procedure devices error:",
+        error?.response?.data || error
+      );
+    }
+  };
+
+  // To load methods function
+  const loadMethodOptions = async (search = "") => {
+    try {
+      const res = await getProcedureMethods(search, 0, 20);
+
+      const options = res.data.content.map((item) => ({
+        value: item.id,
+        label: item.methodName,
+      }));
+
+      setMethodOptions(options);
+    } catch (error) {
+      console.error(
+        "Load procedure methods error:",
+        error?.response?.data || error
+      );
+    }
+  };
+
+  // Use effect for site device and method
+  useEffect(() => {
+    loadSiteOptions();
+    loadDeviceOptions();
+    loadMethodOptions();
+  }, []);
 
   useEffect(() => {
     if (activePatient?.id && encounterId === null) {
@@ -308,9 +451,32 @@ export default function Encounter() {
 
       const data = res.data;
 
-      setComplaints(data.complaints || []);
-      setDiagnoses(data.diagnoses || []);
-      setProcedures(data.procedures || []);
+      const complaintList = (data.complaints || []).map((c) => ({
+        id: c.id,
+        complaint: c.complaint,
+        days: c.timeSinceDays,
+      }));
+
+      const diagnosisList = (data.diagnoses || []).map((d) => ({
+        id: d.id,
+        diagnosisType: d.diagnosisType,
+        diagnosis: d.description,
+        code: d.code,
+      }));
+
+      const procedureList = (data.procedures || []).map((p) => ({
+        id: p.id,
+        procedure: p.procedureName,
+        site: p.site || "-",
+        device: p.device || "-",
+        method: p.method || "-",
+        laterality: p.laterality || "-",
+        priority: p.priority || "-",
+      }));
+
+      setComplaints(complaintList);
+      setDiagnoses(diagnosisList);
+      setProcedures(procedureList);
       setNotes(data.notes || "");
     } catch (error) {
       console.error(
@@ -420,19 +586,25 @@ export default function Encounter() {
                   options={diagnosisTypeOptions}
                   value={diagnosisType}
                   onChange={setDiagnosisType}
-                  placeholder="Select type..."
+                  placeholder="Diagnosis Type"
                   menuPortalTarget={document.body}
                   menuPosition="fixed"
                   styles={selectStyles}
                 />
               </div>
 
-              <div className="md:col-span-6">
+              <div className="md:col-span-4">
                 <Select
-                  options={diagnosisOptions}
+                  options={diagnosisNameOptions}
                   value={diagnosis}
-                  onChange={setDiagnosis}
-                  placeholder="Search diagnosis..."
+                  onChange={handleDiagnosisChange}
+                  placeholder="Diagnosis"
+                  onInputChange={(inputValue, actionMeta) => {
+                    if (actionMeta.action === "input-change") {
+                      loadIcdCodes(inputValue);
+                    }
+                  }}
+                  isSearchable
                   menuPortalTarget={document.body}
                   menuPosition="fixed"
                   styles={selectStyles}
@@ -440,6 +612,24 @@ export default function Encounter() {
               </div>
 
               <div className="md:col-span-3">
+                <Select
+                  options={icdCodeOptions}
+                  value={icdCode}
+                  onChange={handleIcdCodeChange}
+                  placeholder="ICD-10 Code"
+                  onInputChange={(inputValue, actionMeta) => {
+                    if (actionMeta.action === "input-change") {
+                      loadIcdCodes(inputValue);
+                    }
+                  }}
+                  isSearchable
+                  menuPortalTarget={document.body}
+                  menuPosition="fixed"
+                  styles={selectStyles}
+                />
+              </div>
+
+              <div className="md:col-span-2">
                 <button
                   onClick={addDiagnosis}
                   className="w-full rounded-xl bg-blue-600 text-white px-4 py-2.5 hover:bg-blue-700 shadow"
@@ -499,6 +689,12 @@ export default function Encounter() {
                   value={procedure}
                   onChange={setProcedure}
                   placeholder="Search procedure..."
+                  onInputChange={(inputValue, actionMeta) => {
+                    if (actionMeta.action === "input-change") {
+                      loadProcedureOptions(inputValue);
+                    }
+                  }}
+                  isSearchable
                   menuPortalTarget={document.body}
                   menuPosition="fixed"
                   styles={selectStyles}
@@ -511,10 +707,16 @@ export default function Encounter() {
                   value={site}
                   onChange={setSite}
                   placeholder="Site..."
+                  onInputChange={(inputValue, actionMeta) => {
+                    if (actionMeta.action === "input-change") {
+                      loadSiteOptions(inputValue);
+                    }
+                  }}
+                  isSearchable
+                  isClearable
                   menuPortalTarget={document.body}
                   menuPosition="fixed"
                   styles={selectStyles}
-                  isClearable
                 />
               </div>
 
@@ -524,10 +726,16 @@ export default function Encounter() {
                   value={device}
                   onChange={setDevice}
                   placeholder="Device..."
+                  onInputChange={(inputValue, actionMeta) => {
+                    if (actionMeta.action === "input-change") {
+                      loadDeviceOptions(inputValue);
+                    }
+                  }}
+                  isSearchable
+                  isClearable
                   menuPortalTarget={document.body}
                   menuPosition="fixed"
                   styles={selectStyles}
-                  isClearable
                 />
               </div>
 
@@ -537,10 +745,16 @@ export default function Encounter() {
                   value={method}
                   onChange={setMethod}
                   placeholder="Method..."
+                  onInputChange={(inputValue, actionMeta) => {
+                    if (actionMeta.action === "input-change") {
+                      loadMethodOptions(inputValue);
+                    }
+                  }}
+                  isSearchable
+                  isClearable
                   menuPortalTarget={document.body}
                   menuPosition="fixed"
                   styles={selectStyles}
-                  isClearable
                 />
               </div>
 
