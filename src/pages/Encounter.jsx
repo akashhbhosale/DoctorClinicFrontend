@@ -306,18 +306,19 @@ export default function Encounter() {
   const loadProcedureOptions = async (search = "") => {
     try {
       const res = await getProcedures(search, 0, 20);
-
+  
       const options = res.data.content.map((item) => ({
-        value: item.id,
-        label: item.procedureName, // change if backend field name is different
+        value: item.id,   // used for API
+        label: item.name, // shown in dropdown
       }));
-
+  
       setProcedureOptions(options);
     } catch (error) {
       console.error("Load procedures error:", error?.response?.data || error);
     }
   };
 
+  
   const removeProcedure = async (id) => {
     try {
       setLoading(true);
@@ -339,37 +340,32 @@ export default function Encounter() {
   const loadSiteOptions = async (search = "") => {
     try {
       const res = await getProcedureSites(search, 0, 20);
-
+  
       const options = res.data.content.map((item) => ({
         value: item.id,
-        label: item.siteName,
+        label: item.name,
       }));
-
+  
       setSiteOptions(options);
     } catch (error) {
-      console.error(
-        "Load procedure sites error:",
-        error?.response?.data || error
-      );
+      console.error("Load sites error:", error?.response?.data || error);
     }
   };
 
+  
   // To load devices fun
   const loadDeviceOptions = async (search = "") => {
     try {
       const res = await getProcedureDevices(search, 0, 20);
-
+  
       const options = res.data.content.map((item) => ({
         value: item.id,
-        label: item.deviceName,
+        label: item.name,
       }));
-
+  
       setDeviceOptions(options);
     } catch (error) {
-      console.error(
-        "Load procedure devices error:",
-        error?.response?.data || error
-      );
+      console.error("Load devices error:", error?.response?.data || error);
     }
   };
 
@@ -377,18 +373,15 @@ export default function Encounter() {
   const loadMethodOptions = async (search = "") => {
     try {
       const res = await getProcedureMethods(search, 0, 20);
-
+  
       const options = res.data.content.map((item) => ({
         value: item.id,
-        label: item.methodName,
+        label: item.name,
       }));
-
+  
       setMethodOptions(options);
     } catch (error) {
-      console.error(
-        "Load procedure methods error:",
-        error?.response?.data || error
-      );
+      console.error("Load methods error:", error?.response?.data || error);
     }
   };
 
