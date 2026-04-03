@@ -133,30 +133,39 @@ export default function Encounter() {
   }
 
   const addComplaint = async () => {
-    if (!complaint || !days || !encounterId) return;
-
+    if (!complaint || !days || !encounterId) {
+      alert("Please select complaint and enter duration");
+      return;
+    }
+  
     try {
+      setLoading(true);
+  
       const payload = {
         encounterId,
         complaintId: complaint.value,
         timeSinceDays: Number(days),
       };
-
-      const res = await addEncounterComplaint(payload);
-
-      setComplaints([
-        ...complaints,
-        {
-          id: res.data.id,
-          complaint: complaint.label,
-          days: Number(days),
-        },
-      ]);
-
+  
+      await addEncounterComplaint(payload);
+  
       setComplaint(null);
       setDays("");
+  
+      await loadEncounterDetails(encounterId);
     } catch (error) {
-      console.error("Add complaint error:", error?.response?.data || error);
+      console.error("Full add complaint error:", error);
+      console.error("Backend error data:", error?.response?.data);
+  
+      const message =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.response?.data ||
+        "Failed to add complaint";
+  
+      alert(message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -173,34 +182,33 @@ export default function Encounter() {
   };
 
   const addDiagnosis = async () => {
-    if (!diagnosisType || !diagnosis || !encounterId) return;
+    if (!diagnosisType || !diagnosis || !encounterId) {
+      alert("Please select diagnosis type and diagnosis");
+      return;
+    }
 
     try {
+      setLoading(true);
+
       const payload = {
         encounterId,
         icdCodeId: diagnosis.value,
         diagnosisType: diagnosisType.value,
       };
-
-      const res = await addEncounterDiagnosis(payload);
-
-      setDiagnoses([
-        ...diagnoses,
-        {
-          id: res.data.id,
-          diagnosisType: diagnosisType.label,
-          diagnosis: diagnosis.label,
-          code: icdCode?.label || diagnosis.code,
-        },
-      ]);
-
+      await addEncounterDiagnosis(payload);
       setDiagnosisType(null);
       setDiagnosis(null);
       setIcdCode(null);
-
       await loadEncounterDetails(encounterId);
     } catch (error) {
-      console.error("Add diagnosis error:", error?.response?.data || error);
+      const message =
+        error?.response?.data?.message ||
+        error?.response?.data ||
+        "Failed to add diagnosis";
+      alert(message);
+      console.error("Add diagnosis error:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -216,7 +224,6 @@ export default function Encounter() {
         code: item.code,
         description: item.description,
       }));
-
       setDiagnosisOptions(options);
     } catch (error) {
       console.error("Load ICD codes error:", error?.response?.data || error);
@@ -236,7 +243,6 @@ export default function Encounter() {
       setIcdCode(null);
       return;
     }
-
     const matchedCode = icdCodeOptions.find(
       (item) => item.value === selected.value
     );
@@ -245,12 +251,10 @@ export default function Encounter() {
 
   const handleIcdCodeChange = (selected) => {
     setIcdCode(selected);
-
     if (!selected) {
       setDiagnosis(null);
       return;
     }
-
     const matchedDiagnosis = diagnosisNameOptions.find(
       (item) => item.value === selected.value
     );
@@ -270,8 +274,10 @@ export default function Encounter() {
   };
 
   const addProcedure = async () => {
-    if (!procedure || !priority || !encounterId) return;
-
+    if (!procedure || !priority) {
+      alert("Please select procedure and priority");
+      return;
+    }
     try {
       setLoading(true);
 
@@ -306,19 +312,18 @@ export default function Encounter() {
   const loadProcedureOptions = async (search = "") => {
     try {
       const res = await getProcedures(search, 0, 20);
-  
+
       const options = res.data.content.map((item) => ({
-        value: item.id,   // used for API
+        value: item.id, // used for API
         label: item.name, // shown in dropdown
       }));
-  
+
       setProcedureOptions(options);
     } catch (error) {
       console.error("Load procedures error:", error?.response?.data || error);
     }
   };
 
-  
   const removeProcedure = async (id) => {
     try {
       setLoading(true);
@@ -340,29 +345,28 @@ export default function Encounter() {
   const loadSiteOptions = async (search = "") => {
     try {
       const res = await getProcedureSites(search, 0, 20);
-  
+
       const options = res.data.content.map((item) => ({
         value: item.id,
         label: item.name,
       }));
-  
+
       setSiteOptions(options);
     } catch (error) {
       console.error("Load sites error:", error?.response?.data || error);
     }
   };
 
-  
   // To load devices fun
   const loadDeviceOptions = async (search = "") => {
     try {
       const res = await getProcedureDevices(search, 0, 20);
-  
+
       const options = res.data.content.map((item) => ({
         value: item.id,
         label: item.name,
       }));
-  
+
       setDeviceOptions(options);
     } catch (error) {
       console.error("Load devices error:", error?.response?.data || error);
@@ -373,12 +377,12 @@ export default function Encounter() {
   const loadMethodOptions = async (search = "") => {
     try {
       const res = await getProcedureMethods(search, 0, 20);
-  
+
       const options = res.data.content.map((item) => ({
         value: item.id,
         label: item.name,
       }));
-  
+
       setMethodOptions(options);
     } catch (error) {
       console.error("Load methods error:", error?.response?.data || error);
@@ -398,17 +402,41 @@ export default function Encounter() {
     }
   }, [activePatient?.id]);
 
+  // TO save Notes
   const saveEncounterNotes = async () => {
-    if (!encounterId || !notes.trim()) return;
-
+    // Validation first
+    if (!encounterId) return;
+  
+    if (
+      complaints.length === 0 &&
+      diagnoses.length === 0 &&
+      procedures.length === 0 &&
+      !notes.trim()
+    ) {
+      alert("Please add at least one complaint, diagnosis, procedure, or notes");
+      return;
+    }
+  
     try {
+      setLoading(true);
+  
       await updateEncounterNotes(encounterId, {
-        notes: notes,
+        notes: notes.trim(),
       });
-
-      alert("Encounter notes saved successfully");
+  
+      await loadEncounterDetails(encounterId);
+  
+      alert("Encounter saved successfully");
     } catch (error) {
-      console.error("Save notes error:", error?.response?.data || error);
+      const message =
+        error?.response?.data?.message ||
+        error?.response?.data ||
+        "Failed to save encounter";
+  
+      alert(message);
+      console.error("Save notes error:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -435,13 +463,12 @@ export default function Encounter() {
   };
 
   const loadEncounterDetails = async (id) => {
+    if (!id) return;
+
     try {
       console.log("loadEncounterDetails CALLED with id:", id);
 
       const res = await getEncounterDetails(id);
-
-      console.log("API response:", res.data);
-
       const data = res.data;
 
       const complaintList = (data.complaints || []).map((c) => ({
