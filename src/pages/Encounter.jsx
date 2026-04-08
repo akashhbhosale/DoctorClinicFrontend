@@ -3,6 +3,7 @@ import Select from "react-select";
 import SectionHeader from "../components/SectionHeader";
 import { useParams } from "react-router-dom";
 import { usePatient } from "../context/PatientContext";
+import { useDoctor } from "../context/DoctorContext";
 import {
   createEncounter,
   addEncounterComplaint,
@@ -38,14 +39,13 @@ const selectStyles = {
 
 export default function Encounter() {
   const { id } = useParams();
+  const { doctor } = useDoctor();
+
   const patientContext = usePatient();
   const activePatient = patientContext?.activePatient;
 
-  console.log("activePatient:", activePatient);
-  console.log("route id:", id);
-
   const patientId = activePatient?.id || id;
-  console.log("Patient ID:", patientId);
+
   const [loading, setLoading] = useState(false);
 
   const [encounterId, setEncounterId] = useState(null);
@@ -120,10 +120,14 @@ export default function Encounter() {
       }
     }
 
+    if (!doctor?.id) {
+      throw new Error("Doctor information not loaded");
+    }
+
     try {
       const payload = {
         patientId: Number(patientId),
-        doctorId: 27,
+        doctorId: doctor.id,
       };
 
       const res = await createEncounter(payload);
@@ -445,7 +449,7 @@ export default function Encounter() {
         });
       }
 
-      sessionStorage.removeItem(`currentEncounter_${patientId}`);
+      sessionStorage.removeItem(getEncounterStorageKey());
 
       resetEncounterForm();
 
@@ -947,10 +951,11 @@ export default function Encounter() {
 
           <div className="text-right">
             <button
-              className="rounded-xl bg-blue-600 text-white px-6 py-3 hover:bg-blue-700 shadow"
+              className="rounded-xl bg-blue-600 text-white px-6 py-3 hover:bg-blue-700 shadow disabled:opacity-50"
               onClick={saveEncounterNotes}
+              disabled={loading}
             >
-              Save Encounter
+              {loading ? "Saving..." : "Save Encounter"}
             </button>
           </div>
         </div>

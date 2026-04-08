@@ -1,6 +1,7 @@
 import { useState } from "react";
 import http from "../api/http";
 import { useNavigate } from "react-router-dom";
+import { useDoctor } from "../context/DoctorContext";
 
 export default function Login() {
   const [username, setUsername] = useState("");
@@ -8,20 +9,23 @@ export default function Login() {
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [message, setMessage] = useState("");
   const navigate = useNavigate();
+  const { setDoctor } = useDoctor();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setMessage("");
-  
+
     try {
       const res = await http.post("/api/auth/login", { username, password });
-  
+
       const { token, doctor, message } = res.data || {};
-  
+
       if (token && doctor) {
         localStorage.setItem("token", token);
-        localStorage.setItem("doctor", JSON.stringify(doctor));   // ✅ STORE DOCTOR
-  
+        localStorage.setItem("doctor", JSON.stringify(doctor));
+
+        setDoctor(doctor);
+
         setMessage(message || "Login successful");
         navigate("/dashboard");
       } else {
@@ -35,7 +39,7 @@ export default function Login() {
   return (
     <div
       className="flex items-center justify-center min-h-screen bg-cover bg-center"
-      style={{ backgroundImage: "url('/bg-login.jpg')" }} // 👈 background image
+      style={{ backgroundImage: "url('/bg-login.jpg')" }}
     >
       <form
         onSubmit={handleSubmit}
@@ -45,7 +49,6 @@ export default function Login() {
           Doctor Login
         </h2>
 
-        {/* Username */}
         <div className="grid grid-cols-3 items-center gap-4">
           <label htmlFor="username" className="font-medium">
             Username
@@ -61,7 +64,6 @@ export default function Login() {
           />
         </div>
 
-        {/* Password with toggle */}
         <div className="grid grid-cols-3 items-center gap-4">
           <label htmlFor="password" className="font-medium">
             Password
@@ -86,7 +88,6 @@ export default function Login() {
           </div>
         </div>
 
-        {/* Login button */}
         <button
           type="submit"
           className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
@@ -94,7 +95,6 @@ export default function Login() {
           Login
         </button>
 
-        {/* Sign Up button */}
         <button
           type="button"
           onClick={() => navigate("/signup")}

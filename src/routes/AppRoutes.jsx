@@ -50,7 +50,6 @@ export default function AppRoutes() {
 
         <Route path="/patients/edit/:id" element={<EditPatient />} />
       </Route>
-
       {/* Fallback */}
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { Menu, X, LogOut, ChevronDown } from "lucide-react";
 import { usePatient } from "../context/PatientContext";
+import { useDoctor } from "../context/DoctorContext";
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -12,21 +13,30 @@ export default function Navbar() {
   const patientsRef = useRef(null);
   const [globalSearch, setGlobalSearch] = useState("");
   const { setActivePatient } = usePatient();
+  const { clearDoctor } = useDoctor();
 
   /* ================= Logout ================= */
   const handleLogout = () => {
     localStorage.removeItem("token");
-
-    // Clear Patient Information
+  
     sessionStorage.removeItem("patient");
-
-    // Reset context immediately
+  
+    Object.keys(sessionStorage).forEach((key) => {
+      if (key.startsWith("currentEncounter_")) {
+        sessionStorage.removeItem(key);
+      }
+    });
+  
     setActivePatient(null);
-
+    clearDoctor();
+  
+    setShowPatients(false);
     setIsOpen(false);
-    navigate("/login");
+    setGlobalSearch("");
+  
+    navigate("/login", { replace: true });
   };
-
+  
   /* ================= Active Styles ================= */
   const navClass = ({ isActive }) =>
     isActive
