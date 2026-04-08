@@ -14,36 +14,45 @@ export default function Navbar() {
   const [globalSearch, setGlobalSearch] = useState("");
   const { setActivePatient } = usePatient();
   const { clearDoctor } = useDoctor();
+  const activeClass = "bg-red-600 px-3 py-1.5 rounded-lg text-white";
+  const inactiveClass = "hover:text-gray-200";
 
   /* ================= Logout ================= */
   const handleLogout = () => {
     localStorage.removeItem("token");
-  
+
     sessionStorage.removeItem("patient");
-  
+
     Object.keys(sessionStorage).forEach((key) => {
       if (key.startsWith("currentEncounter_")) {
         sessionStorage.removeItem(key);
       }
     });
-  
+
     setActivePatient(null);
     clearDoctor();
-  
+
     setShowPatients(false);
     setIsOpen(false);
     setGlobalSearch("");
-  
+
     navigate("/login", { replace: true });
   };
-  
-  /* ================= Active Styles ================= */
-  const navClass = ({ isActive }) =>
-    isActive
-      ? "bg-red-600 px-3 py-1.5 rounded-lg text-white"
-      : "hover:text-gray-200";
 
-  const isPatientsActive = location.pathname.startsWith("/patients");
+  /* ================= Active Styles ================= */
+
+  const navClass = ({ isActive }) => (isActive ? activeClass : inactiveClass);
+
+  const isPatientsActive =
+    location.pathname === "/patients" ||
+    location.pathname === "/patients/new" ||
+    /^\/patients\/[^/]+$/.test(location.pathname);
+
+  const isEncounterActive =
+    location.pathname === "/encounter" ||
+    /^\/patients\/[^/]+\/encounter$/.test(location.pathname) ||
+    /^\/patients\/[^/]+\/encounter\/[^/]+$/.test(location.pathname) ||
+    /^\/patients\/[^/]+\/encounters$/.test(location.pathname);
 
   /* ================= Close Dropdown on Outside Click ================= */
   useEffect(() => {
@@ -108,12 +117,9 @@ export default function Navbar() {
             <div className="relative" ref={patientsRef}>
               <button
                 onClick={() => setShowPatients((prev) => !prev)}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg
-                  ${
-                    isPatientsActive
-                      ? "bg-red-600 text-white"
-                      : "hover:text-gray-200"
-                  }`}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg ${
+                  isPatientsActive ? activeClass : inactiveClass
+                }`}
               >
                 Patients <ChevronDown size={16} />
               </button>
@@ -143,7 +149,10 @@ export default function Navbar() {
             </div>
 
             {/* Core Pages */}
-            <NavLink to="/encounter" className={navClass}>
+            <NavLink
+              to="/encounter"
+              className={isEncounterActive ? activeClass : inactiveClass}
+            >
               Encounter
             </NavLink>
             <NavLink to="/history" className={navClass}>
