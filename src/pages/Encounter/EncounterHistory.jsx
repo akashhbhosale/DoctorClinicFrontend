@@ -65,7 +65,7 @@ export default function EncounterHistory() {
             <button
               onClick={() => navigate(`/patients/${patientId}/encounter`)}
               className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 shadow-sm transition font-medium"
-            >
+            > 
               New Encounter
             </button>
           </div>
@@ -131,9 +131,7 @@ export default function EncounterHistory() {
                     <div className="self-end">
                       <button
                         onClick={() =>
-                          navigate(
-                            `/patients/${patientId}/encounter/${encounter.id}`
-                          )
+                          navigate(`/patients/${patientId}/encounter/${encounter.id}/view`)
                         }
                         className="px-4 py-2 rounded-lg border border-blue-500 text-blue-600 hover:bg-blue-50 transition font-medium"
                       >

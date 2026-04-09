@@ -12,6 +12,8 @@ import AddPatient from "../pages/Patients/AddPatient.jsx";
 import ViewPatient from "../pages/Patients/ViewPatient";
 import EditPatient from "../pages/Patients/EditPatient";
 import EncounterHistory from "../pages/Encounter/EncounterHistory.jsx";
+import ViewEncounter from "../pages/Encounter/ViewEncounter.jsx";
+import EditEncounter from "../pages/Encounter/EditEncounter.jsx";
 
 import ProtectedRoute from "../components/ProtectedRoute.jsx";
 import AppLayout from "../layouts/AppLayout.jsx";
@@ -47,6 +49,10 @@ export default function AppRoutes() {
           <Route path="history" element={<History />} />
           <Route path="encounter" element={<Encounter />} />
           <Route path="encounters" element={<EncounterHistory />} />
+          <Route path="encounter/:encounterId/view"
+            element={<ViewEncounter />}
+          />
+          <Route path="encounter/:encounterId/edit" element={<EditEncounter />} />
           <Route path="encounter/:encounterId" element={<Encounter />} />
         </Route>
 
