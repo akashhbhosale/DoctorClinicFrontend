@@ -90,3 +90,6 @@ export const getEncounterDetails = (encounterId) =>
   api.get(`/encounters/${encounterId}/details`);
 
 export const createEncounter = (payload) => api.post("/encounters", payload);
+
+export const deleteEncounter = (encounterId) =>
+  api.delete(`/encounters/${encounterId}`);

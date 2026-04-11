@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import Select from "react-select";
 import SectionHeader from "../components/SectionHeader";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { usePatient } from "../context/PatientContext";
 import { useDoctor } from "../context/DoctorContext";
 import {
@@ -39,12 +39,18 @@ const selectStyles = {
 
 export default function Encounter() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { doctor } = useDoctor();
 
   const patientContext = usePatient();
   const activePatient = patientContext?.activePatient;
 
   const patientId = activePatient?.id || id;
+
+  const goToEncounterHistory = () => {
+    if (!patientId) return;
+    navigate(`/patients/${patientId}/encounters`);
+  };
 
   const [loading, setLoading] = useState(false);
 
@@ -237,7 +243,6 @@ export default function Encounter() {
     }
   };
 
-  // To load diagnosis from backend list
   const loadIcdCodes = async (search = "") => {
     try {
       const res = await getIcdCodes(search, 0, 20);
@@ -255,12 +260,10 @@ export default function Encounter() {
     }
   };
 
-  // Use effect for Icd codes
   useEffect(() => {
     loadIcdCodes();
   }, []);
 
-  // To handle diagnosis Method
   const handleDiagnosisChange = (selected) => {
     setDiagnosis(selected);
 
@@ -336,14 +339,13 @@ export default function Encounter() {
     }
   };
 
-  // To load procedures from backend
   const loadProcedureOptions = async (search = "") => {
     try {
       const res = await getProcedures(search, 0, 20);
 
       const options = res.data.content.map((item) => ({
-        value: item.id, // used for API
-        label: item.name, // shown in dropdown
+        value: item.id,
+        label: item.name,
       }));
 
       setProcedureOptions(options);
@@ -364,12 +366,10 @@ export default function Encounter() {
     }
   };
 
-  // Use effect to load procedures
   useEffect(() => {
     loadProcedureOptions();
   }, []);
 
-  // load site options
   const loadSiteOptions = async (search = "") => {
     try {
       const res = await getProcedureSites(search, 0, 20);
@@ -385,7 +385,6 @@ export default function Encounter() {
     }
   };
 
-  // To load devices fun
   const loadDeviceOptions = async (search = "") => {
     try {
       const res = await getProcedureDevices(search, 0, 20);
@@ -401,7 +400,6 @@ export default function Encounter() {
     }
   };
 
-  // To load methods function
   const loadMethodOptions = async (search = "") => {
     try {
       const res = await getProcedureMethods(search, 0, 20);
@@ -417,14 +415,12 @@ export default function Encounter() {
     }
   };
 
-  // Use effect for site device and method
   useEffect(() => {
     loadSiteOptions();
     loadDeviceOptions();
     loadMethodOptions();
   }, []);
 
-  // TO save Notes
   const saveEncounterNotes = async () => {
     if (
       complaints.length === 0 &&
@@ -579,7 +575,6 @@ export default function Encounter() {
     loadEncounterDetails(parsedId);
   }, [patientId]);
 
-  //If patient is not selected we need to select patient
   if (!patientId) {
     return <div className="p-6">Loading patient...</div>;
   }
@@ -590,6 +585,23 @@ export default function Encounter() {
         <SectionHeader title="Encounter" />
 
         <div className="p-8 space-y-8">
+          <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500 font-medium">
+                  Add and manage encounter details for this patient.
+                </p>
+              </div>
+
+              <button
+                onClick={goToEncounterHistory}
+                className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 shadow-sm transition font-medium"
+              >
+                Encounter History
+              </button>
+            </div>
+          </div>
+
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-5">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">
@@ -949,14 +961,31 @@ export default function Encounter() {
             />
           </section>
 
-          <div className="text-right">
-            <button
-              className="rounded-xl bg-blue-600 text-white px-6 py-3 hover:bg-blue-700 shadow disabled:opacity-50"
-              onClick={saveEncounterNotes}
-              disabled={loading}
-            >
-              {loading ? "Saving..." : "Save Encounter"}
-            </button>
+          <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500 font-medium">
+                  Save this encounter or review previous encounter history.
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={goToEncounterHistory}
+                  className="bg-white text-blue-600 border border-blue-500 px-5 py-2 rounded-lg hover:bg-blue-50 shadow-sm transition font-medium"
+                >
+                  Encounter History
+                </button>
+
+                <button
+                  className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 shadow-sm transition font-medium disabled:opacity-50"
+                  onClick={saveEncounterNotes}
+                  disabled={loading}
+                >
+                  {loading ? "Saving..." : "Save Encounter"}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>

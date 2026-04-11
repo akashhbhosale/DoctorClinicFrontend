@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getEncounterDetails } from "../../services/encounterApi";
 import SectionHeader from "../../components/SectionHeader";
+import { deleteEncounter } from "../../services/encounterApi";
+import ConfirmModal from "../../components/ConfirmModal";
 
 export default function ViewEncounter() {
   const { id, encounterId } = useParams();
@@ -10,6 +12,9 @@ export default function ViewEncounter() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [encounter, setEncounter] = useState(null);
+
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const loadEncounter = async () => {
     if (!encounterId) return;
@@ -37,6 +42,23 @@ export default function ViewEncounter() {
     return new Date(dateTime).toLocaleString();
   };
 
+  const handleDeleteEncounter = async () => {
+    try {
+      setDeleting(true);
+
+      await deleteEncounter(encounterId);
+
+      setIsDeleteModalOpen(false);
+      alert("Encounter deleted successfully");
+      navigate(`/patients/${id}/encounters`);
+    } catch (err) {
+      console.error("Error deleting encounter:", err);
+      alert("Failed to delete encounter");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-100 p-6 rounded-3xl">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -58,11 +80,18 @@ export default function ViewEncounter() {
 
               <button
                 onClick={() =>
-                    navigate(`/patients/${id}/encounter/${encounterId}/edit`)
+                  navigate(`/patients/${id}/encounter/${encounterId}/edit`)
                 }
                 className="px-4 py-2 rounded-lg border border-blue-500 text-blue-600 hover:bg-blue-50 transition font-medium"
               >
                 Edit
+              </button>
+
+              <button
+                onClick={() => setIsDeleteModalOpen(true)}
+                className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition font-medium"
+              >
+                Delete Encounter
               </button>
             </div>
           </div>
@@ -236,7 +265,9 @@ export default function ViewEncounter() {
                             <td className="px-4 py-3">
                               {item.laterality || "-"}
                             </td>
-                            <td className="px-4 py-3">{item.priority || "-"}</td>
+                            <td className="px-4 py-3">
+                              {item.priority || "-"}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -267,6 +298,13 @@ export default function ViewEncounter() {
           )}
         </div>
       </div>
+      <ConfirmModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={handleDeleteEncounter}
+        title="Delete Encounter"
+        message="Are you sure you want to delete this encounter? This action will remove all related complaints, diagnoses, procedures, and notes."
+      />
     </div>
   );
 }
