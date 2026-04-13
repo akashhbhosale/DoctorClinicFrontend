@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import SectionHeader from "../../components/SectionHeader";
 import ConfirmModal from "../../components/ConfirmModal";
 import { useLocation } from "react-router-dom";
+import { usePatient } from "../../context/PatientContext";
 
 export default function AllPatients() {
   const navigate = useNavigate();
@@ -17,6 +18,7 @@ export default function AllPatients() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const location = useLocation();
+  const { setActivePatient } = usePatient();
   const token = localStorage.getItem("token");
 
   const fetchPatients = async () => {
@@ -167,14 +169,25 @@ export default function AllPatients() {
                     <td className="px-6 py-3 font-medium text-slate-800">
                       {patient.abhaId}
                     </td>
-                    <td className="px-6 py-3">{patient.fullName}</td>
+                    <td
+                      className="px-6 py-3 text-blue-600 cursor-pointer hover:underline"
+                      onClick={() => {
+                        setActivePatient(patient);
+                        navigate(`/patients/${patient.id}`);
+                      }}
+                    >
+                      {patient.fullName}
+                    </td>
                     <td className="px-6 py-3">{patient.phoneNo}</td>
                     <td className="px-6 py-3">{patient.gender}</td>
                     <td className="px-6 py-3">
                       <div className="flex gap-2">
                         {/* View Button */}
                         <button
-                          onClick={() => navigate(`/patients/${patient.id}`)}
+                          onClick={() => {
+                            setActivePatient(patient); // 🔥 Set in sidebar
+                            navigate(`/patients/${patient.id}`); // optional
+                          }}
                           className="px-3 py-1 text-sm rounded-md 
       bg-blue-100 text-blue-700 
       hover:bg-blue-200 

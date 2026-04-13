@@ -133,7 +133,7 @@ export default function AddPatient() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50 py-5 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50 p-6">
       <div className="max-w-5xl mx-autobg-white/90 backdrop-blur rounded-2xl shadow-xl border border-slate-200">
         {/* Header */}
         <SectionHeader title="Add New Patient's Information" />

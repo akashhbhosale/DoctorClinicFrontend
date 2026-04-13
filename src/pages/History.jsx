@@ -3,6 +3,7 @@ import Select from "react-select";
 import { usePatient } from "../context/PatientContext";
 import { useParams } from "react-router-dom";
 import SectionHeader from "../components/SectionHeader";
+import PatientSelectionRequired from "../components/PatientSelectionRequired";
 
 export default function History() {
   const { id } = useParams();
@@ -222,15 +223,20 @@ export default function History() {
 
   if (!patientId) {
     return (
-      <div className="p-6">
-        Loading patient...
+      <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50 p-6">
+        <div className="max-w-6xl mx-auto">
+          <PatientSelectionRequired
+            title="Please select a patient"
+            message="A patient must be selected before viewing or updating patient history. You can open the patient list or add a new patient."
+          />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50 py-5 px-4">
-      <div className="max-w-6xl mx-auto bg-white/90 backdrop-blur rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50 p-6">
+      <div className="w-full bg-white/90 backdrop-blur rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
         <SectionHeader title="Patient History" />
 
         <div className="px-8 py-8 space-y-10">

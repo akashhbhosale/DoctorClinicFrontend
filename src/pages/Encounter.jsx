@@ -3,6 +3,7 @@ import Select from "react-select";
 import SectionHeader from "../components/SectionHeader";
 import { useNavigate, useParams } from "react-router-dom";
 import { usePatient } from "../context/PatientContext";
+import PatientSelectionRequired from "../components/PatientSelectionRequired";
 import { useDoctor } from "../context/DoctorContext";
 import {
   createEncounter,
@@ -576,7 +577,14 @@ export default function Encounter() {
   }, [patientId]);
 
   if (!patientId) {
-    return <div className="p-6">Loading patient...</div>;
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50 p-6">
+        <PatientSelectionRequired
+          title="Please select a patient"
+          message="A patient must be selected before creating or managing an encounter."
+        />
+      </div>
+    );
   }
 
   return (
