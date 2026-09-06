@@ -2,6 +2,16 @@ import axios from "axios";
 
 const api = axios.create({ baseURL: "http://localhost:8080/api" });
 
+// Attach JWT to every request (backend now enforces authentication on all
+// endpoints except /api/auth/**)
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 // Complaints
 export const addEncounterComplaint = (payload) =>
   api.post("/encounter-complaints", payload);
@@ -90,6 +100,9 @@ export const getEncounterDetails = (encounterId) =>
   api.get(`/encounters/${encounterId}/details`);
 
 export const createEncounter = (payload) => api.post("/encounters", payload);
+
+export const getEncountersByPatient = (patientId) =>
+  api.get(`/encounters/patient/${patientId}`);
 
 export const deleteEncounter = (encounterId) =>
   api.delete(`/encounters/${encounterId}`);

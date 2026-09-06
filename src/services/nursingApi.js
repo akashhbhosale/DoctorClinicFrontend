@@ -2,6 +2,16 @@ import axios from "axios";
 
 const api = axios.create({ baseURL: "http://localhost:8080/api" });
 
+// Attach JWT to every request (backend now enforces authentication on all
+// endpoints except /api/auth/**)
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 // Nursing Assessment master
 export const getNursingAssessments = (search = "", page = 0, size = 20) =>
   search.trim()

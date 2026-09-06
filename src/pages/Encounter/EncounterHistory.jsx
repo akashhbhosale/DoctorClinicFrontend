@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import axios from "axios";
 import { usePatient } from "../../context/PatientContext";
 import SectionHeader from "../../components/SectionHeader";
 import {
   getEncounterDetails,
+  getEncountersByPatient,
   deleteEncounter,
 } from "../../services/encounterApi";
 import ConfirmModal from "../../components/ConfirmModal";
@@ -29,9 +29,7 @@ export default function EncounterHistory() {
       setLoading(true);
       setError("");
 
-      const res = await axios.get(
-        `http://localhost:8080/api/encounters/patient/${patientId}`
-      );
+      const res = await getEncountersByPatient(patientId);
 
       setEncounters(res.data || []);
     } catch (err) {

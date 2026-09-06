@@ -11,6 +11,14 @@ export default function History() {
   const activePatient = patientContext?.activePatient;
   const patientId = activePatient?.id || id;
 
+  // Backend now requires a valid JWT on every endpoint except /api/auth/**.
+  // This page used raw fetch() calls with no auth header at all — build one
+  // here so every call below can reuse it.
+  const authHeaders = () => {
+    const token = localStorage.getItem("token");
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
+
   const [pastMaster, setPastMaster] = useState([]);
   const [familyMaster, setFamilyMaster] = useState([]);
   const [relationships, setRelationships] = useState([]);
@@ -35,7 +43,9 @@ export default function History() {
   }, [errorMessage]);
 
   useEffect(() => {
-    fetch("http://localhost:8080/api/history/master-data")
+    fetch("http://localhost:8080/api/history/master-data", {
+      headers: { ...authHeaders() },
+    })
       .then((res) => res.json())
       .then((data) => {
         setPastMaster(data.pastMedicalHistory || []);
@@ -48,7 +58,9 @@ export default function History() {
   useEffect(() => {
     if (!patientId) return;
 
-    fetch(`http://localhost:8080/api/history/patient/${patientId}`)
+    fetch(`http://localhost:8080/api/history/patient/${patientId}`, {
+      headers: { ...authHeaders() },
+    })
       .then((res) => res.json())
       .then((data) => {
         setPastHistoryList(data.pastMedicalHistory || []);
@@ -122,7 +134,7 @@ export default function History() {
     try {
       const res = await fetch("http://localhost:8080/api/history/past", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify(body),
       });
 
@@ -148,6 +160,7 @@ export default function History() {
     try {
       await fetch(`http://localhost:8080/api/history/past/${id}`, {
         method: "DELETE",
+        headers: { ...authHeaders() },
       });
       setPastHistoryList(pastHistoryList.filter((item) => item.id !== id));
     } catch (error) {
@@ -189,7 +202,7 @@ export default function History() {
     try {
       const res = await fetch("http://localhost:8080/api/history/family", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify(body),
       });
 
@@ -213,6 +226,7 @@ export default function History() {
     try {
       await fetch(`http://localhost:8080/api/history/family/${id}`, {
         method: "DELETE",
+        headers: { ...authHeaders() },
       });
       setFamilyHistoryList(familyHistoryList.filter((item) => item.id !== id));
     } catch (error) {

@@ -144,6 +144,13 @@ export default function Navbar() {
                   >
                     Add Patient
                   </NavLink>
+                  <NavLink
+                    to="/patients/archived"
+                    className="block px-4 py-2 text-white hover:bg-blue-700"
+                    onClick={() => setShowPatients(false)}
+                  >
+                    Archived Patients
+                  </NavLink>
                 </div>
               )}
             </div>
