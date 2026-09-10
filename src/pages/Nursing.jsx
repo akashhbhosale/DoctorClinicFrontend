@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import Select from "react-select";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 
 import SectionHeader from "../components/SectionHeader";
 import PatientSelectionRequired from "../components/PatientSelectionRequired";
@@ -34,14 +34,25 @@ const selectStyles = {
 
 export default function Nursing() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { doctor } = useDoctor();
 
   const patientContext = usePatient();
   const activePatient = patientContext?.activePatient;
   const patientId = activePatient?.id || id;
 
+  const goToNursingHistory = () => {
+    if (!patientId) return;
+    navigate(`/patients/${patientId}/nursing-history`);
+  };
+
   const [loading, setLoading] = useState(false);
   const [encounterId, setEncounterId] = useState(null);
+
+  // Shows a clear "Saved" confirmation after each Add, since nursing rows
+  // save immediately (no separate "Save Encounter" step, unlike the
+  // notes field on the Encounter page).
+  const [savedMessage, setSavedMessage] = useState("");
 
   /* ================= FORM STATE ================= */
   const [assessment, setAssessment] = useState(null);
@@ -61,7 +72,7 @@ export default function Nursing() {
 
   const getEncounterStorageKey = () => `currentEncounter_${patientId}`;
 
-  /* ---------------- Ensure encounter exists (same pattern as Assessment.jsx) ---------------- */
+  /* ---------------- Ensure encounter exists (same pattern as Assessment.jsx / Encounter.jsx) ---------------- */
   const ensureEncounterExists = async () => {
     if (encounterId) return encounterId;
 
@@ -156,18 +167,20 @@ export default function Nursing() {
   };
 
   useEffect(() => {
+    if (!patientId) return;
+
     const savedEncounterId = sessionStorage.getItem(getEncounterStorageKey());
-    if (savedEncounterId) {
-      const parsedId = Number(savedEncounterId);
-      if (!Number.isNaN(parsedId)) {
-        setEncounterId(parsedId);
-        loadNursingRecords(parsedId);
-      }
-    }
+    if (!savedEncounterId) return;
+
+    const parsedId = Number(savedEncounterId);
+    if (Number.isNaN(parsedId)) return;
+
+    setEncounterId(parsedId);
+    loadNursingRecords(parsedId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patientId]);
 
-  /* ---------------- Add ---------------- */
+  /* ---------------- Add (saves immediately) ---------------- */
   const addNursingRecord = async () => {
     if (!assessment || !diagnosis || !intervention) {
       alert("Please select Assessment, Diagnosis, and Intervention");
@@ -176,6 +189,7 @@ export default function Nursing() {
 
     try {
       setLoading(true);
+      setSavedMessage("");
 
       const currentEncounterId = await ensureEncounterExists();
 
@@ -198,6 +212,11 @@ export default function Nursing() {
       setIntervention(null);
 
       await loadNursingRecords(currentEncounterId);
+
+      // Clear confirmation so it's unmistakable this row is already saved —
+      // no separate "Save" button exists for nursing entries.
+      setSavedMessage("Saved to this encounter.");
+      setTimeout(() => setSavedMessage(""), 3000);
     } catch (error) {
       console.error("Add nursing record error:", error?.response?.data || error);
 
@@ -229,177 +248,214 @@ export default function Nursing() {
   /* ================= RENDER ================= */
   if (!patientId) {
     return (
-      <div className="p-6">
-        <PatientSelectionRequired />
+      <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50 p-6">
+        <PatientSelectionRequired
+          title="Please select a patient"
+          message="A patient must be selected before adding nursing details."
+        />
       </div>
     );
   }
 
   return (
-    <div className="min-h-full p-6 bg-gray-50">
-      <div className="max-w-6xl mx-auto space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50 p-6">
+      <div className="w-full bg-white/90 backdrop-blur rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
         <SectionHeader title="Nursing" />
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-5">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900">
-              Nursing Details
-            </h2>
-            <p className="text-sm text-slate-500">
-              Add nursing assessment, diagnosis, outcome, and intervention. Multiple
-              interventions can be added for this encounter.
-            </p>
-          </div>
+        <div className="p-8 space-y-8">
+          {/* TOP INFO BAR — same pattern as Assessment.jsx / Encounter.jsx */}
+          <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-6">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <p className="text-sm text-gray-500 font-medium">
+                  Nursing page for the current encounter.
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Encounter ID: {encounterId || "Not created yet"}
+                </p>
+              </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
-            <div className="md:col-span-3">
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Assessment <span className="text-red-500">*</span>
-              </label>
-              <Select
-                options={assessmentOptions}
-                value={assessment}
-                onChange={setAssessment}
-                placeholder="Nursing Assessment"
-                onInputChange={(inputValue, actionMeta) => {
-                  if (actionMeta.action === "input-change") {
-                    loadAssessmentOptions(inputValue);
-                  }
-                }}
-                isSearchable
-                isClearable
-                menuPortalTarget={document.body}
-                menuPosition="fixed"
-                styles={selectStyles}
-              />
-            </div>
-
-            <div className="md:col-span-3">
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Diagnosis <span className="text-red-500">*</span>
-              </label>
-              <Select
-                options={diagnosisOptions}
-                value={diagnosis}
-                onChange={setDiagnosis}
-                placeholder="Nursing Diagnosis"
-                onInputChange={(inputValue, actionMeta) => {
-                  if (actionMeta.action === "input-change") {
-                    loadDiagnosisOptions(inputValue);
-                  }
-                }}
-                isSearchable
-                isClearable
-                menuPortalTarget={document.body}
-                menuPosition="fixed"
-                styles={selectStyles}
-              />
-            </div>
-
-            <div className="md:col-span-3">
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Outcome
-              </label>
-              <Select
-                options={outcomeOptions}
-                value={outcome}
-                onChange={setOutcome}
-                placeholder="Nursing Outcome"
-                onInputChange={(inputValue, actionMeta) => {
-                  if (actionMeta.action === "input-change") {
-                    loadOutcomeOptions(inputValue);
-                  }
-                }}
-                isSearchable
-                isClearable
-                menuPortalTarget={document.body}
-                menuPosition="fixed"
-                styles={selectStyles}
-              />
-            </div>
-
-            <div className="md:col-span-3">
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Outcome Score
-              </label>
-              <input
-                type="number"
-                placeholder="0"
-                value={outcomeScore}
-                onChange={(e) => setOutcomeScore(e.target.value)}
-                className="w-full border border-slate-300 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
-              />
-            </div>
-
-            <div className="md:col-span-9">
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Intervention <span className="text-red-500">*</span>
-              </label>
-              <Select
-                options={interventionOptions}
-                value={intervention}
-                onChange={setIntervention}
-                placeholder="Nursing Intervention"
-                onInputChange={(inputValue, actionMeta) => {
-                  if (actionMeta.action === "input-change") {
-                    loadInterventionOptions(inputValue);
-                  }
-                }}
-                isSearchable
-                isClearable
-                menuPortalTarget={document.body}
-                menuPosition="fixed"
-                styles={selectStyles}
-              />
-            </div>
-
-            <div className="md:col-span-3 flex items-end h-full">
               <button
-                onClick={addNursingRecord}
-                disabled={loading}
-                className="w-full rounded-xl bg-blue-600 text-white px-6 py-2.5 hover:bg-blue-700 shadow disabled:opacity-50"
+                onClick={goToNursingHistory}
+                className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 shadow-sm transition font-medium"
               >
-                + Add
+                Nursing History
               </button>
             </div>
           </div>
 
-          {nursingRecords.length > 0 && (
-            <div className="overflow-x-auto rounded-xl border border-slate-200">
-              <table className="min-w-full text-sm">
-                <thead className="bg-blue-600 text-white">
-                  <tr>
-                    <th className="px-4 py-3 text-left">Assessment</th>
-                    <th className="px-4 py-3 text-left">Diagnosis</th>
-                    <th className="px-4 py-3 text-left">Outcome</th>
-                    <th className="px-4 py-3 text-left">Score</th>
-                    <th className="px-4 py-3 text-left">Intervention</th>
-                    <th className="px-4 py-3 text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white">
-                  {nursingRecords.map((item) => (
-                    <tr key={item.id} className="border-t">
-                      <td className="px-4 py-3">{item.assessment}</td>
-                      <td className="px-4 py-3">{item.diagnosis}</td>
-                      <td className="px-4 py-3">{item.outcome || "-"}</td>
-                      <td className="px-4 py-3">{item.outcomeScore ?? "-"}</td>
-                      <td className="px-4 py-3">{item.intervention}</td>
-                      <td className="px-4 py-3 text-center">
-                        <button
-                          onClick={() => removeRecord(item.id)}
-                          className="rounded-md bg-red-600 px-3 py-1 text-white hover:bg-red-700"
-                        >
-                          Remove
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          {/* NURSING DETAILS SECTION */}
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-5">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">
+                  Nursing Details
+                </h2>
+                <p className="text-sm text-slate-500">
+                  Select assessment, diagnosis, outcome, and intervention, then
+                  click Add. Each entry saves immediately — there's no separate
+                  save step. Multiple interventions can be added for this
+                  encounter.
+                </p>
+              </div>
+
+              {savedMessage && (
+                <span className="text-sm font-medium text-green-600 bg-green-50 border border-green-200 rounded-lg px-3 py-1">
+                  ✓ {savedMessage}
+                </span>
+              )}
             </div>
-          )}
-        </section>
+
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
+              <div className="md:col-span-3">
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Assessment <span className="text-red-500">*</span>
+                </label>
+                <Select
+                  options={assessmentOptions}
+                  value={assessment}
+                  onChange={setAssessment}
+                  placeholder="Nursing Assessment"
+                  onInputChange={(inputValue, actionMeta) => {
+                    if (actionMeta.action === "input-change") {
+                      loadAssessmentOptions(inputValue);
+                    }
+                  }}
+                  isSearchable
+                  isClearable
+                  menuPortalTarget={document.body}
+                  menuPosition="fixed"
+                  styles={selectStyles}
+                />
+              </div>
+
+              <div className="md:col-span-3">
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Diagnosis <span className="text-red-500">*</span>
+                </label>
+                <Select
+                  options={diagnosisOptions}
+                  value={diagnosis}
+                  onChange={setDiagnosis}
+                  placeholder="Nursing Diagnosis"
+                  onInputChange={(inputValue, actionMeta) => {
+                    if (actionMeta.action === "input-change") {
+                      loadDiagnosisOptions(inputValue);
+                    }
+                  }}
+                  isSearchable
+                  isClearable
+                  menuPortalTarget={document.body}
+                  menuPosition="fixed"
+                  styles={selectStyles}
+                />
+              </div>
+
+              <div className="md:col-span-3">
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Outcome
+                </label>
+                <Select
+                  options={outcomeOptions}
+                  value={outcome}
+                  onChange={setOutcome}
+                  placeholder="Nursing Outcome"
+                  onInputChange={(inputValue, actionMeta) => {
+                    if (actionMeta.action === "input-change") {
+                      loadOutcomeOptions(inputValue);
+                    }
+                  }}
+                  isSearchable
+                  isClearable
+                  menuPortalTarget={document.body}
+                  menuPosition="fixed"
+                  styles={selectStyles}
+                />
+              </div>
+
+              <div className="md:col-span-3">
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Outcome Score
+                </label>
+                <input
+                  type="number"
+                  placeholder="0"
+                  value={outcomeScore}
+                  onChange={(e) => setOutcomeScore(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500"
+                />
+              </div>
+
+              <div className="md:col-span-9">
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Intervention <span className="text-red-500">*</span>
+                </label>
+                <Select
+                  options={interventionOptions}
+                  value={intervention}
+                  onChange={setIntervention}
+                  placeholder="Nursing Intervention"
+                  onInputChange={(inputValue, actionMeta) => {
+                    if (actionMeta.action === "input-change") {
+                      loadInterventionOptions(inputValue);
+                    }
+                  }}
+                  isSearchable
+                  isClearable
+                  menuPortalTarget={document.body}
+                  menuPosition="fixed"
+                  styles={selectStyles}
+                />
+              </div>
+
+              <div className="md:col-span-3">
+                <button
+                  onClick={addNursingRecord}
+                  disabled={loading}
+                  className="w-full rounded-xl bg-blue-600 text-white px-6 py-2.5 hover:bg-blue-700 shadow disabled:opacity-50"
+                >
+                  {loading ? "Saving..." : "+ Add"}
+                </button>
+              </div>
+            </div>
+
+            {nursingRecords.length > 0 && (
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-blue-600 text-white">
+                    <tr>
+                      <th className="px-4 py-3 text-left">Assessment</th>
+                      <th className="px-4 py-3 text-left">Diagnosis</th>
+                      <th className="px-4 py-3 text-left">Outcome</th>
+                      <th className="px-4 py-3 text-left">Score</th>
+                      <th className="px-4 py-3 text-left">Intervention</th>
+                      <th className="px-4 py-3 text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white">
+                    {nursingRecords.map((item) => (
+                      <tr key={item.id} className="border-t">
+                        <td className="px-4 py-3">{item.assessment}</td>
+                        <td className="px-4 py-3">{item.diagnosis}</td>
+                        <td className="px-4 py-3">{item.outcome || "-"}</td>
+                        <td className="px-4 py-3">{item.outcomeScore ?? "-"}</td>
+                        <td className="px-4 py-3">{item.intervention}</td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            onClick={() => removeRecord(item.id)}
+                            className="rounded-md bg-red-600 px-3 py-1 text-white hover:bg-red-700"
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        </div>
       </div>
     </div>
   );

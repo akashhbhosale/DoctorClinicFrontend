@@ -7,6 +7,7 @@ import Encounter from "../pages/Encounter.jsx";
 import Assessment from "../pages/Assessment.jsx";
 import History from "../pages/History.jsx";
 import Nursing from "../pages/Nursing.jsx";
+import Allergies from "../pages/Allergies.jsx";
 import PatientsList from "../pages/Patients/AllPatients.jsx";
 import AddPatient from "../pages/Patients/AddPatient.jsx";
 import ArchivedPatients from "../pages/Patients/ArchivedPatients.jsx";
@@ -15,6 +16,7 @@ import EditPatient from "../pages/Patients/EditPatient";
 import EncounterHistory from "../pages/Encounter/EncounterHistory.jsx";
 import ViewEncounter from "../pages/Encounter/ViewEncounter.jsx";
 import EditEncounter from "../pages/Encounter/EditEncounter.jsx";
+import NursingHistory from "../pages/NursingHistory.jsx";
 
 import ProtectedRoute from "../components/ProtectedRoute.jsx";
 import AppLayout from "../layouts/AppLayout.jsx";
@@ -41,6 +43,7 @@ export default function AppRoutes() {
         <Route path="/assessment" element={<Assessment />} />
         <Route path="/history" element={<History />} />
         <Route path="/nursing" element={<Nursing />} />
+        <Route path="/allergies" element={<Allergies />} />
 
         <Route path="/patients" element={<PatientsList />} />
         <Route path="/patients/new" element={<AddPatient />} />
@@ -51,6 +54,9 @@ export default function AppRoutes() {
           <Route path="history" element={<History />} />
           <Route path="encounter" element={<Encounter />} />
           <Route path="encounters" element={<EncounterHistory />} />
+          <Route path="nursing" element={<Nursing />} />
+          <Route path="nursing-history" element={<NursingHistory />} />
+          <Route path="allergies" element={<Allergies />} />
           <Route path="encounter/:encounterId/view"
             element={<ViewEncounter />}
           />

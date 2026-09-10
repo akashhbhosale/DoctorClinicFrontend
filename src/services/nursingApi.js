@@ -59,5 +59,10 @@ export const addEncounterNursing = (payload) =>
 export const getEncounterNursing = (encounterId) =>
   api.get(`/encounter-nursing/${encounterId}`);
 
+// All nursing records for a patient, across every encounter — used by the
+// Nursing History page.
+export const getNursingHistoryByPatient = (patientId) =>
+  api.get(`/encounter-nursing/patient/${patientId}`);
+
 export const deleteEncounterNursing = (id) =>
   api.delete(`/encounter-nursing/${id}`);
