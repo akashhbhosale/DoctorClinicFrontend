@@ -119,3 +119,10 @@ export const getEncounterObservation = (encounterId) =>
 
 export const deleteEncounterObservation = (observationId) =>
   api.delete(`/assessment/observation/${observationId}`);
+
+// ===================== ASSESSMENT HISTORY (NEW) =====================
+
+// All Vitals/Laboratory/Radiology/Observation records for a patient,
+// grouped by encounter, most recent encounter first.
+export const getAssessmentHistoryByPatient = (patientId) =>
+  api.get(`/assessment/history/patient/${patientId}`);

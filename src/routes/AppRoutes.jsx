@@ -17,6 +17,7 @@ import EncounterHistory from "../pages/Encounter/EncounterHistory.jsx";
 import ViewEncounter from "../pages/Encounter/ViewEncounter.jsx";
 import EditEncounter from "../pages/Encounter/EditEncounter.jsx";
 import NursingHistory from "../pages/NursingHistory.jsx";
+import AssessmentHistory from "../pages/AssessmentHistory.jsx";
 
 import ProtectedRoute from "../components/ProtectedRoute.jsx";
 import AppLayout from "../layouts/AppLayout.jsx";
@@ -57,6 +58,7 @@ export default function AppRoutes() {
           <Route path="nursing" element={<Nursing />} />
           <Route path="nursing-history" element={<NursingHistory />} />
           <Route path="allergies" element={<Allergies />} />
+          <Route path="assessment-history" element={<AssessmentHistory />} />
           <Route path="encounter/:encounterId/view"
             element={<ViewEncounter />}
           />

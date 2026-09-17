@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import Select from "react-select";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import SectionHeader from "../components/SectionHeader";
 import PatientSelectionRequired from "../components/PatientSelectionRequired";
 import { usePatient } from "../context/PatientContext";
@@ -48,6 +48,7 @@ const selectStyles = {
 
 export default function Assessment() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { doctor } = useDoctor();
 
   const patientContext = usePatient();
@@ -755,12 +756,26 @@ export default function Assessment() {
 
         <div className="p-8 space-y-8">
           <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-6">
-            <p className="text-sm text-gray-500 font-medium">
-              Assessment page for the current encounter.
-            </p>
-            <p className="text-xs text-gray-400 mt-1">
-              Encounter ID: {encounterId || "Not created yet"}
-            </p>
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <p className="text-sm text-gray-500 font-medium">
+                  Assessment page for the current encounter.
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Encounter ID: {encounterId || "Not created yet"}
+                </p>
+              </div>
+
+              <button
+                onClick={() => {
+                  if (!patientId) return;
+                  navigate(`/patients/${patientId}/assessment-history`);
+                }}
+                className="bg-blue-900 text-white px-5 py-2 rounded-lg hover:bg-blue-800 shadow-sm transition font-medium"
+              >
+                Assessment History
+              </button>
+            </div>
           </div>
 
           {/* ================= VITALS ================= */}
