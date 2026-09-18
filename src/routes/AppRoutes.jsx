@@ -8,6 +8,7 @@ import Assessment from "../pages/Assessment.jsx";
 import History from "../pages/History.jsx";
 import Nursing from "../pages/Nursing.jsx";
 import Allergies from "../pages/Allergies.jsx";
+import Medication from "../pages/Medication.jsx";
 import PatientsList from "../pages/Patients/AllPatients.jsx";
 import AddPatient from "../pages/Patients/AddPatient.jsx";
 import ArchivedPatients from "../pages/Patients/ArchivedPatients.jsx";
@@ -45,6 +46,7 @@ export default function AppRoutes() {
         <Route path="/history" element={<History />} />
         <Route path="/nursing" element={<Nursing />} />
         <Route path="/allergies" element={<Allergies />} />
+        <Route path="/medication" element={<Medication />} />
 
         <Route path="/patients" element={<PatientsList />} />
         <Route path="/patients/new" element={<AddPatient />} />
@@ -59,6 +61,7 @@ export default function AppRoutes() {
           <Route path="nursing-history" element={<NursingHistory />} />
           <Route path="allergies" element={<Allergies />} />
           <Route path="assessment-history" element={<AssessmentHistory />} />
+          <Route path="medication" element={<Medication />} />
           <Route path="encounter/:encounterId/view"
             element={<ViewEncounter />}
           />
