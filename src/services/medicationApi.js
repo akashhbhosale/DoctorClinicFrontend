@@ -56,3 +56,10 @@ export const saveEncounterFollowUp = (encounterId, payload) =>
 
 export const getEncounterFollowUp = (encounterId) =>
   api.get(`/encounter-follow-up/${encounterId}`);
+
+// ===================== MEDICATION HISTORY (NEW) =====================
+
+// All Medications/Surgical Treatments/Follow-ups for a patient, grouped
+// by encounter, most recent encounter first.
+export const getMedicationHistoryByPatient = (patientId) =>
+  api.get(`/medication-history/patient/${patientId}`);

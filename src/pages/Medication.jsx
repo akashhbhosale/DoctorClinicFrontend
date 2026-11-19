@@ -376,13 +376,27 @@ export default function Medication() {
 
         <div className="p-8 space-y-8">
           <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-6">
-            <p className="text-sm text-gray-500 font-medium">
-              Prescribe medication, record surgical treatment, and set a
-              follow-up for this encounter.
-            </p>
-            <p className="text-xs text-gray-400 mt-1">
-              Encounter ID: {encounterId || "Not created yet"}
-            </p>
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <p className="text-sm text-gray-500 font-medium">
+                  Prescribe medication, record surgical treatment, and set a
+                  follow-up for this encounter.
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Encounter ID: {encounterId || "Not created yet"}
+                </p>
+              </div>
+
+              <button
+                onClick={() => {
+                  if (!patientId) return;
+                  navigate(`/patients/${patientId}/medication-history`);
+                }}
+                className="bg-blue-900 text-white px-5 py-2 rounded-lg hover:bg-blue-800 shadow-sm transition font-medium"
+              >
+                Medication History
+              </button>
+            </div>
           </div>
 
           {/* ================= MEDICATION ================= */}

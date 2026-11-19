@@ -12,9 +12,11 @@ import {
   getNursingDiagnoses,
   getNursingOutcomes,
   getNursingInterventions,
-  addEncounterNursing,
-  getEncounterNursing,
-  deleteEncounterNursing,
+  addNursingAssessmentRecord,
+  getNursingAssessmentRecords,
+  deleteNursingAssessmentRecord,
+  addNursingInterventionEntry,
+  deleteNursingInterventionEntry,
 } from "../services/nursingApi";
 
 const selectStyles = {
@@ -26,10 +28,15 @@ const selectStyles = {
     borderRadius: "0.75rem",
     borderColor: state.isFocused ? "#3b82f6" : "#cbd5e1",
     boxShadow: state.isFocused ? "0 0 0 2px rgba(59,130,246,0.15)" : "none",
-    "&:hover": {
-      borderColor: "#3b82f6",
-    },
+    "&:hover": { borderColor: "#3b82f6" },
   }),
+};
+
+const formatTime = (value) => {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleString();
 };
 
 export default function Nursing() {
@@ -48,31 +55,40 @@ export default function Nursing() {
 
   const [loading, setLoading] = useState(false);
   const [encounterId, setEncounterId] = useState(null);
-
-  // Shows a clear "Saved" confirmation after each Add, since nursing rows
-  // save immediately (no separate "Save Encounter" step, unlike the
-  // notes field on the Encounter page).
   const [savedMessage, setSavedMessage] = useState("");
 
-  /* ================= FORM STATE ================= */
+  /* ============ NEW ASSESSMENT FORM ============ */
   const [assessment, setAssessment] = useState(null);
   const [diagnosis, setDiagnosis] = useState(null);
   const [outcome, setOutcome] = useState(null);
   const [outcomeScore, setOutcomeScore] = useState("");
-  const [intervention, setIntervention] = useState(null);
 
-  /* ================= DROPDOWN OPTIONS ================= */
+  /* ============ DROPDOWN OPTIONS ============ */
   const [assessmentOptions, setAssessmentOptions] = useState([]);
   const [diagnosisOptions, setDiagnosisOptions] = useState([]);
   const [outcomeOptions, setOutcomeOptions] = useState([]);
   const [interventionOptions, setInterventionOptions] = useState([]);
 
-  /* ================= SAVED RECORDS ================= */
-  const [nursingRecords, setNursingRecords] = useState([]);
+  /* ============ SAVED RECORDS (each holds its own interventions) ============ */
+  const [records, setRecords] = useState([]);
+
+  // Per-record "add intervention" draft, keyed by assessment record id:
+  // { intervention: {value,label}|null, time: "YYYY-MM-DDTHH:mm"|"", note: "" }
+  const [drafts, setDrafts] = useState({});
+  const [busyRecordId, setBusyRecordId] = useState(null);
 
   const getEncounterStorageKey = () => `currentEncounter_${patientId}`;
 
-  /* ---------------- Ensure encounter exists (same pattern as Assessment.jsx / Encounter.jsx) ---------------- */
+  const getDraft = (recordId) =>
+    drafts[recordId] || { intervention: null, time: "", note: "" };
+
+  const updateDraft = (recordId, patch) => {
+    setDrafts((prev) => ({
+      ...prev,
+      [recordId]: { ...getDraft(recordId), ...patch },
+    }));
+  };
+
   const ensureEncounterExists = async () => {
     if (encounterId) return encounterId;
 
@@ -89,12 +105,10 @@ export default function Nursing() {
       throw new Error("Doctor information not loaded");
     }
 
-    const payload = {
+    const res = await createEncounter({
       patientId: Number(patientId),
       doctorId: doctor.id,
-    };
-
-    const res = await createEncounter(payload);
+    });
     const newEncounterId = res.data.id;
 
     setEncounterId(newEncounterId);
@@ -103,13 +117,13 @@ export default function Nursing() {
     return newEncounterId;
   };
 
-  /* ---------------- Load dropdown options (search-as-you-type) ---------------- */
+  /* ---------------- Load dropdown options ---------------- */
+  const toOptions = (res) =>
+    res.data.content.map((item) => ({ value: item.id, label: item.name }));
+
   const loadAssessmentOptions = async (search = "") => {
     try {
-      const res = await getNursingAssessments(search, 0, 20);
-      setAssessmentOptions(
-        res.data.content.map((item) => ({ value: item.id, label: item.name }))
-      );
+      setAssessmentOptions(toOptions(await getNursingAssessments(search, 0, 20)));
     } catch (error) {
       console.error("Load nursing assessments error:", error?.response?.data || error);
     }
@@ -117,10 +131,7 @@ export default function Nursing() {
 
   const loadDiagnosisOptions = async (search = "") => {
     try {
-      const res = await getNursingDiagnoses(search, 0, 20);
-      setDiagnosisOptions(
-        res.data.content.map((item) => ({ value: item.id, label: item.name }))
-      );
+      setDiagnosisOptions(toOptions(await getNursingDiagnoses(search, 0, 20)));
     } catch (error) {
       console.error("Load nursing diagnoses error:", error?.response?.data || error);
     }
@@ -128,10 +139,7 @@ export default function Nursing() {
 
   const loadOutcomeOptions = async (search = "") => {
     try {
-      const res = await getNursingOutcomes(search, 0, 20);
-      setOutcomeOptions(
-        res.data.content.map((item) => ({ value: item.id, label: item.name }))
-      );
+      setOutcomeOptions(toOptions(await getNursingOutcomes(search, 0, 20)));
     } catch (error) {
       console.error("Load nursing outcomes error:", error?.response?.data || error);
     }
@@ -139,10 +147,7 @@ export default function Nursing() {
 
   const loadInterventionOptions = async (search = "") => {
     try {
-      const res = await getNursingInterventions(search, 0, 20);
-      setInterventionOptions(
-        res.data.content.map((item) => ({ value: item.id, label: item.name }))
-      );
+      setInterventionOptions(toOptions(await getNursingInterventions(search, 0, 20)));
     } catch (error) {
       console.error("Load nursing interventions error:", error?.response?.data || error);
     }
@@ -155,12 +160,12 @@ export default function Nursing() {
     loadInterventionOptions();
   }, []);
 
-  /* ---------------- Load existing nursing records for this encounter ---------------- */
-  const loadNursingRecords = async (currentEncounterId) => {
+  /* ---------------- Load existing records ---------------- */
+  const loadRecords = async (currentEncounterId) => {
     if (!currentEncounterId) return;
     try {
-      const res = await getEncounterNursing(currentEncounterId);
-      setNursingRecords(res.data || []);
+      const res = await getNursingAssessmentRecords(currentEncounterId);
+      setRecords(res.data || []);
     } catch (error) {
       console.error("Load nursing records error:", error?.response?.data || error);
     }
@@ -176,14 +181,19 @@ export default function Nursing() {
     if (Number.isNaN(parsedId)) return;
 
     setEncounterId(parsedId);
-    loadNursingRecords(parsedId);
+    loadRecords(parsedId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patientId]);
 
-  /* ---------------- Add (saves immediately) ---------------- */
-  const addNursingRecord = async () => {
-    if (!assessment || !diagnosis || !intervention) {
-      alert("Please select Assessment, Diagnosis, and Intervention");
+  const flashSaved = (message) => {
+    setSavedMessage(message);
+    setTimeout(() => setSavedMessage(""), 3000);
+  };
+
+  /* ---------------- Add assessment record ---------------- */
+  const addAssessmentRecord = async () => {
+    if (!assessment || !diagnosis) {
+      alert("Please select Assessment and Diagnosis");
       return;
     }
 
@@ -193,55 +203,92 @@ export default function Nursing() {
 
       const currentEncounterId = await ensureEncounterExists();
 
-      const payload = {
+      await addNursingAssessmentRecord({
         encounterId: currentEncounterId,
         assessmentId: assessment.value,
         diagnosisId: diagnosis.value,
         outcomeId: outcome ? outcome.value : null,
         outcomeScore: outcomeScore !== "" ? Number(outcomeScore) : null,
-        interventionId: intervention.value,
-      };
+      });
 
-      await addEncounterNursing(payload);
-
-      // reset form
       setAssessment(null);
       setDiagnosis(null);
       setOutcome(null);
       setOutcomeScore("");
-      setIntervention(null);
 
-      await loadNursingRecords(currentEncounterId);
-
-      // Clear confirmation so it's unmistakable this row is already saved —
-      // no separate "Save" button exists for nursing entries.
-      setSavedMessage("Saved to this encounter.");
-      setTimeout(() => setSavedMessage(""), 3000);
+      await loadRecords(currentEncounterId);
+      flashSaved("Assessment saved. Add interventions below as you perform them.");
     } catch (error) {
-      console.error("Add nursing record error:", error?.response?.data || error);
-
-      const message =
-        error?.response?.data?.message ||
-        error?.response?.data?.error ||
-        error?.response?.data ||
-        "Failed to add nursing record";
-
-      alert(message);
+      console.error("Add nursing assessment error:", error?.response?.data || error);
+      alert(error?.response?.data?.message || "Failed to add nursing assessment");
     } finally {
       setLoading(false);
     }
   };
 
-  /* ---------------- Remove ---------------- */
-  const removeRecord = async (recordId) => {
+  const removeAssessmentRecord = async (recordId) => {
+    if (
+      !window.confirm(
+        "Remove this assessment and ALL interventions logged under it?"
+      )
+    ) {
+      return;
+    }
+
     try {
-      setLoading(true);
-      await deleteEncounterNursing(recordId);
-      await loadNursingRecords(encounterId);
+      setBusyRecordId(recordId);
+      await deleteNursingAssessmentRecord(recordId);
+      await loadRecords(encounterId);
     } catch (error) {
-      console.error("Delete nursing record error:", error?.response?.data || error);
+      console.error("Delete nursing assessment error:", error?.response?.data || error);
+      alert("Failed to remove assessment");
     } finally {
-      setLoading(false);
+      setBusyRecordId(null);
+    }
+  };
+
+  /* ---------------- Add / remove intervention under a record ---------------- */
+  const addIntervention = async (recordId) => {
+    const draft = getDraft(recordId);
+
+    if (!draft.intervention) {
+      alert("Please select an intervention");
+      return;
+    }
+
+    try {
+      setBusyRecordId(recordId);
+
+      await addNursingInterventionEntry({
+        assessmentRecordId: recordId,
+        interventionId: draft.intervention.value,
+        // blank = server stamps "now"
+        interventionTime: draft.time || null,
+        note: draft.note.trim() || null,
+      });
+
+      updateDraft(recordId, { intervention: null, time: "", note: "" });
+
+      await loadRecords(encounterId);
+      flashSaved("Intervention logged.");
+    } catch (error) {
+      console.error("Add intervention error:", error?.response?.data || error);
+      alert(error?.response?.data?.message || "Failed to add intervention");
+    } finally {
+      setBusyRecordId(null);
+    }
+  };
+
+  const removeIntervention = async (recordId, interventionEntryId) => {
+    try {
+      setBusyRecordId(recordId);
+      await deleteNursingInterventionEntry(interventionEntryId);
+      await loadRecords(encounterId);
+    } catch (error) {
+      console.error("Delete intervention error:", error?.response?.data || error);
+      alert("Failed to remove intervention");
+    } finally {
+      setBusyRecordId(null);
     }
   };
 
@@ -263,12 +310,13 @@ export default function Nursing() {
         <SectionHeader title="Nursing" />
 
         <div className="p-8 space-y-8">
-          {/* TOP INFO BAR — same pattern as Assessment.jsx / Encounter.jsx */}
+          {/* TOP INFO BAR */}
           <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-6">
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div>
                 <p className="text-sm text-gray-500 font-medium">
-                  Nursing page for the current encounter.
+                  Record a nursing assessment, then log each intervention
+                  under it as you perform them through your shift.
                 </p>
                 <p className="text-xs text-gray-400 mt-1">
                   Encounter ID: {encounterId || "Not created yet"}
@@ -277,25 +325,23 @@ export default function Nursing() {
 
               <button
                 onClick={goToNursingHistory}
-                className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 shadow-sm transition font-medium"
+                className="bg-blue-900 text-white px-5 py-2 rounded-lg hover:bg-blue-800 shadow-sm transition font-medium"
               >
                 Nursing History
               </button>
             </div>
           </div>
 
-          {/* NURSING DETAILS SECTION */}
+          {/* ================= NEW ASSESSMENT ================= */}
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-5">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div>
                 <h2 className="text-lg font-semibold text-slate-900">
-                  Nursing Details
+                  New Nursing Assessment
                 </h2>
                 <p className="text-sm text-slate-500">
-                  Select assessment, diagnosis, outcome, and intervention, then
-                  click Add. Each entry saves immediately — there's no separate
-                  save step. Multiple interventions can be added for this
-                  encounter.
+                  Select the assessment, diagnosis, and outcome once. Then add
+                  as many interventions as needed under it.
                 </p>
               </div>
 
@@ -316,10 +362,8 @@ export default function Nursing() {
                   value={assessment}
                   onChange={setAssessment}
                   placeholder="Nursing Assessment"
-                  onInputChange={(inputValue, actionMeta) => {
-                    if (actionMeta.action === "input-change") {
-                      loadAssessmentOptions(inputValue);
-                    }
+                  onInputChange={(v, meta) => {
+                    if (meta.action === "input-change") loadAssessmentOptions(v);
                   }}
                   isSearchable
                   isClearable
@@ -338,10 +382,8 @@ export default function Nursing() {
                   value={diagnosis}
                   onChange={setDiagnosis}
                   placeholder="Nursing Diagnosis"
-                  onInputChange={(inputValue, actionMeta) => {
-                    if (actionMeta.action === "input-change") {
-                      loadDiagnosisOptions(inputValue);
-                    }
+                  onInputChange={(v, meta) => {
+                    if (meta.action === "input-change") loadDiagnosisOptions(v);
                   }}
                   isSearchable
                   isClearable
@@ -360,10 +402,8 @@ export default function Nursing() {
                   value={outcome}
                   onChange={setOutcome}
                   placeholder="Nursing Outcome"
-                  onInputChange={(inputValue, actionMeta) => {
-                    if (actionMeta.action === "input-change") {
-                      loadOutcomeOptions(inputValue);
-                    }
+                  onInputChange={(v, meta) => {
+                    if (meta.action === "input-change") loadOutcomeOptions(v);
                   }}
                   isSearchable
                   isClearable
@@ -385,76 +425,181 @@ export default function Nursing() {
                   className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500"
                 />
               </div>
-
-              <div className="md:col-span-9">
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Intervention <span className="text-red-500">*</span>
-                </label>
-                <Select
-                  options={interventionOptions}
-                  value={intervention}
-                  onChange={setIntervention}
-                  placeholder="Nursing Intervention"
-                  onInputChange={(inputValue, actionMeta) => {
-                    if (actionMeta.action === "input-change") {
-                      loadInterventionOptions(inputValue);
-                    }
-                  }}
-                  isSearchable
-                  isClearable
-                  menuPortalTarget={document.body}
-                  menuPosition="fixed"
-                  styles={selectStyles}
-                />
-              </div>
-
-              <div className="md:col-span-3">
-                <button
-                  onClick={addNursingRecord}
-                  disabled={loading}
-                  className="w-full rounded-xl bg-blue-600 text-white px-6 py-2.5 hover:bg-blue-700 shadow disabled:opacity-50"
-                >
-                  {loading ? "Saving..." : "+ Add"}
-                </button>
-              </div>
             </div>
 
-            {nursingRecords.length > 0 && (
-              <div className="overflow-x-auto rounded-xl border border-slate-200">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-blue-600 text-white">
-                    <tr>
-                      <th className="px-4 py-3 text-left">Assessment</th>
-                      <th className="px-4 py-3 text-left">Diagnosis</th>
-                      <th className="px-4 py-3 text-left">Outcome</th>
-                      <th className="px-4 py-3 text-left">Score</th>
-                      <th className="px-4 py-3 text-left">Intervention</th>
-                      <th className="px-4 py-3 text-center">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white">
-                    {nursingRecords.map((item) => (
-                      <tr key={item.id} className="border-t">
-                        <td className="px-4 py-3">{item.assessment}</td>
-                        <td className="px-4 py-3">{item.diagnosis}</td>
-                        <td className="px-4 py-3">{item.outcome || "-"}</td>
-                        <td className="px-4 py-3">{item.outcomeScore ?? "-"}</td>
-                        <td className="px-4 py-3">{item.intervention}</td>
-                        <td className="px-4 py-3 text-center">
-                          <button
-                            onClick={() => removeRecord(item.id)}
-                            className="rounded-md bg-red-600 px-3 py-1 text-white hover:bg-red-700"
-                          >
-                            Remove
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            <button
+              onClick={addAssessmentRecord}
+              disabled={loading}
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-900 text-white px-5 py-2.5 font-medium hover:bg-blue-800 shadow transition disabled:opacity-50"
+            >
+              <span className="text-lg leading-none">+</span>{" "}
+              {loading ? "Saving..." : "Add Assessment"}
+            </button>
           </section>
+
+          {/* ================= ASSESSMENT CARDS WITH INTERVENTIONS ================= */}
+          {records.length === 0 && (
+            <div className="bg-white rounded-2xl shadow-sm border border-dashed border-slate-300 p-8 text-center text-slate-400 text-sm">
+              No nursing assessments yet for this encounter. Add one above to
+              start logging interventions.
+            </div>
+          )}
+
+          {records.map((record) => {
+            const draft = getDraft(record.id);
+            const busy = busyRecordId === record.id;
+
+            return (
+              <section
+                key={record.id}
+                className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden"
+              >
+                {/* Assessment header */}
+                <div className="bg-blue-900 text-white px-6 py-4 flex items-start justify-between gap-4 flex-wrap">
+                  <div className="space-y-1 text-sm">
+                    <p>
+                      <span className="text-blue-200">Assessment: </span>
+                      <span className="font-semibold">{record.assessment}</span>
+                    </p>
+                    <p>
+                      <span className="text-blue-200">Diagnosis: </span>
+                      <span className="font-semibold">{record.diagnosis}</span>
+                    </p>
+                    <p>
+                      <span className="text-blue-200">Outcome: </span>
+                      <span className="font-semibold">
+                        {record.outcome || "-"}
+                        {record.outcomeScore !== null &&
+                        record.outcomeScore !== undefined
+                          ? ` (Score: ${record.outcomeScore})`
+                          : ""}
+                      </span>
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => removeAssessmentRecord(record.id)}
+                    disabled={busy}
+                    className="rounded-md bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700 disabled:opacity-50"
+                  >
+                    Remove Assessment
+                  </button>
+                </div>
+
+                <div className="p-6 space-y-5">
+                  {/* Interventions logged so far */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-800 mb-2">
+                      Interventions ({record.interventions?.length || 0})
+                    </h3>
+
+                    {record.interventions && record.interventions.length > 0 ? (
+                      <div className="overflow-x-auto rounded-xl border border-slate-200">
+                        <table className="min-w-full text-sm">
+                          <thead className="bg-slate-100 text-slate-600">
+                            <tr>
+                              <th className="px-4 py-2 text-left">Time</th>
+                              <th className="px-4 py-2 text-left">Intervention</th>
+                              <th className="px-4 py-2 text-left">Note</th>
+                              <th className="px-4 py-2 text-center">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white">
+                            {record.interventions.map((item) => (
+                              <tr key={item.id} className="border-t">
+                                <td className="px-4 py-2 whitespace-nowrap">
+                                  {formatTime(item.interventionTime)}
+                                </td>
+                                <td className="px-4 py-2">{item.intervention}</td>
+                                <td className="px-4 py-2">{item.note || "-"}</td>
+                                <td className="px-4 py-2 text-center">
+                                  <button
+                                    onClick={() =>
+                                      removeIntervention(record.id, item.id)
+                                    }
+                                    disabled={busy}
+                                    className="rounded-md bg-red-600 px-3 py-1 text-white hover:bg-red-700 disabled:opacity-50"
+                                  >
+                                    Remove
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-400">
+                        No interventions logged yet for this assessment.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Add intervention under THIS assessment */}
+                  <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-3">
+                    <p className="text-sm font-medium text-slate-700">
+                      Log an intervention
+                    </p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
+                      <div className="md:col-span-4">
+                        <Select
+                          options={interventionOptions}
+                          value={draft.intervention}
+                          onChange={(v) => updateDraft(record.id, { intervention: v })}
+                          placeholder="Nursing Intervention *"
+                          onInputChange={(v, meta) => {
+                            if (meta.action === "input-change")
+                              loadInterventionOptions(v);
+                          }}
+                          isSearchable
+                          isClearable
+                          menuPortalTarget={document.body}
+                          menuPosition="fixed"
+                          styles={selectStyles}
+                        />
+                      </div>
+
+                      <div className="md:col-span-3">
+                        <input
+                          type="datetime-local"
+                          value={draft.time}
+                          onChange={(e) =>
+                            updateDraft(record.id, { time: e.target.value })
+                          }
+                          className="w-full rounded-xl border border-slate-300 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500"
+                        />
+                        <p className="text-xs text-slate-400 mt-1">
+                          Leave blank to use the current time.
+                        </p>
+                      </div>
+
+                      <div className="md:col-span-3">
+                        <input
+                          value={draft.note}
+                          onChange={(e) =>
+                            updateDraft(record.id, { note: e.target.value })
+                          }
+                          placeholder="Note (optional)"
+                          className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500"
+                        />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <button
+                          onClick={() => addIntervention(record.id)}
+                          disabled={busy}
+                          className="w-full rounded-xl bg-blue-900 text-white px-4 py-2.5 hover:bg-blue-800 shadow disabled:opacity-50"
+                        >
+                          {busy ? "Saving..." : "+ Add"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            );
+          })}
         </div>
       </div>
     </div>

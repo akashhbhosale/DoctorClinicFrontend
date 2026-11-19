@@ -1,219 +1,240 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { usePatient } from "../context/PatientContext";
 import SectionHeader from "../components/SectionHeader";
+import { usePatient } from "../context/PatientContext";
+import PatientSelectionRequired from "../components/PatientSelectionRequired";
 import {
   getNursingHistoryByPatient,
-  deleteEncounterNursing,
+  deleteNursingAssessmentRecord,
 } from "../services/nursingApi";
-import ConfirmModal from "../components/ConfirmModal";
+
+const formatDate = (value) => {
+  if (!value) return "Unknown date";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleString();
+};
+
+// The API returns a flat list (most recent encounter first). Group it by
+// encounter so each visit is one card, keeping the server's ordering.
+const groupByEncounter = (records) => {
+  const groups = [];
+  const indexById = new Map();
+
+  records.forEach((record) => {
+    if (!indexById.has(record.encounterId)) {
+      indexById.set(record.encounterId, groups.length);
+      groups.push({
+        encounterId: record.encounterId,
+        encounterDate: record.encounterDate,
+        records: [],
+      });
+    }
+    groups[indexById.get(record.encounterId)].records.push(record);
+  });
+
+  return groups;
+};
 
 export default function NursingHistory() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { activePatient } = usePatient();
-
+  const patientContext = usePatient();
+  const activePatient = patientContext?.activePatient;
   const patientId = activePatient?.id || id;
 
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [deletingId, setDeletingId] = useState(null);
 
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [selectedRecordId, setSelectedRecordId] = useState(null);
-  const [deleting, setDeleting] = useState(false);
-
-  const loadNursingHistory = async () => {
+  const loadHistory = async () => {
+    if (!patientId) return;
     try {
       setLoading(true);
-      setError("");
-
       const res = await getNursingHistoryByPatient(patientId);
-
       setRecords(res.data || []);
-    } catch (err) {
-      console.error("Error loading nursing history:", err);
-      setError("Failed to load nursing history.");
+    } catch (error) {
+      console.error("Load nursing history error:", error?.response?.data || error);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (patientId) {
-      loadNursingHistory();
-    }
+    loadHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patientId]);
 
-  const formatDateTime = (dateTime) => {
-    if (!dateTime) return "—";
-    return new Date(dateTime).toLocaleString();
-  };
-
-  const openDeleteModal = (recordId) => {
-    setSelectedRecordId(recordId);
-    setIsDeleteModalOpen(true);
-  };
-
-  const handleDeleteRecord = async () => {
-    if (!selectedRecordId) return;
+  const handleDelete = async (recordId) => {
+    if (
+      !window.confirm(
+        "Remove this assessment and ALL interventions logged under it?"
+      )
+    ) {
+      return;
+    }
 
     try {
-      setDeleting(true);
-
-      await deleteEncounterNursing(selectedRecordId);
-
-      setIsDeleteModalOpen(false);
-      setSelectedRecordId(null);
-
-      await loadNursingHistory();
-    } catch (err) {
-      console.error("Error deleting nursing record:", err);
-      alert("Failed to delete nursing record");
+      setDeletingId(recordId);
+      await deleteNursingAssessmentRecord(recordId);
+      await loadHistory();
+    } catch (error) {
+      console.error("Delete nursing record error:", error?.response?.data || error);
+      alert("Failed to remove assessment");
     } finally {
-      setDeleting(false);
+      setDeletingId(null);
     }
   };
 
-  // Group the flat list by encounter — a single encounter can have multiple
-  // nursing rows (multiple interventions), same idea as EncounterHistory
-  // showing one card per encounter, just one level deeper here.
-  const groupedByEncounter = records.reduce((groups, record) => {
-    const key = record.encounterId;
-    if (!groups[key]) {
-      groups[key] = {
-        encounterId: record.encounterId,
-        encounterDate: record.encounterDate,
-        items: [],
-      };
-    }
-    groups[key].items.push(record);
-    return groups;
-  }, {});
+  if (!patientId) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50 p-6">
+        <PatientSelectionRequired
+          title="Please select a patient"
+          message="A patient must be selected before viewing nursing history."
+        />
+      </div>
+    );
+  }
 
-  // Backend already sorts by encounterDate desc, so Object.values preserves
-  // that order (insertion order for object keys in JS).
-  const encounterGroups = Object.values(groupedByEncounter);
+  const groups = groupByEncounter(records);
 
   return (
-    <div className="min-h-screen bg-slate-100 p-6 rounded-2xl">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50 p-6">
+      <div className="w-full bg-white/90 backdrop-blur rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
         <SectionHeader title="Nursing History" />
 
-        <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-6 space-y-6">
-          <div className="flex items-center justify-between">
+        <div className="p-8 space-y-6">
+          <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-6 flex items-center justify-between flex-wrap gap-3">
             <p className="text-sm text-gray-500 font-medium">
-              View all previous nursing assessments, diagnoses, and interventions
-              for this patient, grouped by encounter.
+              Nursing assessments and the interventions logged under each,
+              across every encounter for this patient.
             </p>
 
             <button
-              onClick={() => navigate(`/patients/${patientId}/nursing`)}
-              className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 shadow-sm transition font-medium"
+              onClick={() => navigate(-1)}
+              className="bg-white text-blue-900 border border-blue-900 px-5 py-2 rounded-lg hover:bg-blue-50 shadow-sm transition font-medium"
             >
-              Add Nursing Record
+              ← Back
             </button>
           </div>
 
           {loading && (
-            <p className="text-sm text-gray-700 font-medium">
-              Loading nursing history...
-            </p>
+            <p className="text-sm text-slate-500">Loading nursing history...</p>
           )}
 
-          {error && <p className="text-sm text-red-600 font-medium">{error}</p>}
-
-          {!loading && !error && encounterGroups.length === 0 && (
-            <div className="border rounded-xl p-6 text-center text-gray-700 text-sm font-medium bg-slate-50 border-slate-200">
+          {!loading && groups.length === 0 && (
+            <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-8 text-center text-slate-400">
               No nursing records found for this patient.
             </div>
           )}
 
-          {!loading && !error && encounterGroups.length > 0 && (
-            <div className="space-y-4">
-              {encounterGroups.map((group, index) => (
-                <div
-                  key={group.encounterId}
-                  className="border border-slate-200 rounded-xl p-5 bg-slate-50 shadow-sm hover:shadow-md transition"
-                >
-                  {/* Heading */}
-                  <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-                    <div>
-                      <h2 className="text-lg font-bold text-black">
-                        Encounter {encounterGroups.length - index}
-                      </h2>
-                      <p className="text-gray-500 text-sm mt-1">
-                        {formatDateTime(group.encounterDate)} · Encounter ID: {group.encounterId}
-                      </p>
-                    </div>
-
-                    <button
-                      onClick={() =>
-                        navigate(
-                          `/patients/${patientId}/encounter/${group.encounterId}/view`
-                        )
-                      }
-                      className="px-4 py-2 rounded-lg border border-blue-500 text-blue-600 hover:bg-blue-50 transition font-medium text-sm"
-                    >
-                      View Encounter
-                    </button>
-                  </div>
-
-                  {/* Nursing rows for this encounter */}
-                  <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-                    <table className="min-w-full text-sm">
-                      <thead className="bg-blue-600 text-white">
-                        <tr>
-                          <th className="px-4 py-2 text-left">Assessment</th>
-                          <th className="px-4 py-2 text-left">Diagnosis</th>
-                          <th className="px-4 py-2 text-left">Outcome</th>
-                          <th className="px-4 py-2 text-left">Score</th>
-                          <th className="px-4 py-2 text-left">Intervention</th>
-                          <th className="px-4 py-2 text-center">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {group.items.map((item) => (
-                          <tr key={item.id} className="border-t">
-                            <td className="px-4 py-2">{item.assessment}</td>
-                            <td className="px-4 py-2">{item.diagnosis}</td>
-                            <td className="px-4 py-2">{item.outcome || "-"}</td>
-                            <td className="px-4 py-2">
-                              {item.outcomeScore ?? "-"}
-                            </td>
-                            <td className="px-4 py-2">{item.intervention}</td>
-                            <td className="px-4 py-2 text-center">
-                              <button
-                                onClick={() => openDeleteModal(item.id)}
-                                className="px-3 py-1 text-sm rounded-md bg-red-100 text-red-700 hover:bg-red-200 transition"
-                              >
-                                Delete
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+          {!loading &&
+            groups.map((group) => (
+              <div
+                key={group.encounterId}
+                className="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden"
+              >
+                <div className="bg-blue-900 text-white px-6 py-3 flex items-center justify-between flex-wrap gap-2">
+                  <span className="font-semibold">
+                    Encounter #{group.encounterId} — {formatDate(group.encounterDate)}
+                  </span>
+                  <button
+                    onClick={() =>
+                      navigate(
+                        `/patients/${patientId}/encounter/${group.encounterId}/view`
+                      )
+                    }
+                    className="text-xs bg-white text-blue-900 px-3 py-1 rounded-md hover:bg-blue-50 font-medium"
+                  >
+                    View Encounter
+                  </button>
                 </div>
-              ))}
-            </div>
-          )}
+
+                <div className="p-6 space-y-6">
+                  {group.records.map((record) => (
+                    <div
+                      key={record.id}
+                      className="rounded-xl border border-slate-200 overflow-hidden"
+                    >
+                      <div className="bg-slate-50 px-4 py-3 flex items-start justify-between gap-3 flex-wrap">
+                        <div className="text-sm space-y-0.5">
+                          <p>
+                            <span className="text-slate-500">Assessment: </span>
+                            <span className="font-medium text-slate-800">
+                              {record.assessment}
+                            </span>
+                          </p>
+                          <p>
+                            <span className="text-slate-500">Diagnosis: </span>
+                            <span className="font-medium text-slate-800">
+                              {record.diagnosis}
+                            </span>
+                          </p>
+                          <p>
+                            <span className="text-slate-500">Outcome: </span>
+                            <span className="font-medium text-slate-800">
+                              {record.outcome || "-"}
+                              {record.outcomeScore !== null &&
+                              record.outcomeScore !== undefined
+                                ? ` (Score: ${record.outcomeScore})`
+                                : ""}
+                            </span>
+                          </p>
+                        </div>
+
+                        <button
+                          onClick={() => handleDelete(record.id)}
+                          disabled={deletingId === record.id}
+                          className="rounded-md bg-red-600 px-3 py-1 text-xs text-white hover:bg-red-700 disabled:opacity-50"
+                        >
+                          {deletingId === record.id ? "Removing..." : "Remove"}
+                        </button>
+                      </div>
+
+                      <div className="px-4 py-3">
+                        <p className="text-xs font-semibold text-slate-600 mb-2">
+                          Interventions ({record.interventions?.length || 0})
+                        </p>
+
+                        {record.interventions && record.interventions.length > 0 ? (
+                          <div className="overflow-x-auto rounded-lg border border-slate-200">
+                            <table className="min-w-full text-sm">
+                              <thead className="bg-slate-100 text-slate-600">
+                                <tr>
+                                  <th className="px-3 py-2 text-left">Time</th>
+                                  <th className="px-3 py-2 text-left">
+                                    Intervention
+                                  </th>
+                                  <th className="px-3 py-2 text-left">Note</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {record.interventions.map((item) => (
+                                  <tr key={item.id} className="border-t">
+                                    <td className="px-3 py-2 whitespace-nowrap">
+                                      {formatDate(item.interventionTime)}
+                                    </td>
+                                    <td className="px-3 py-2">{item.intervention}</td>
+                                    <td className="px-3 py-2">{item.note || "-"}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-slate-400">
+                            No interventions were logged for this assessment.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
         </div>
       </div>
-
-      <ConfirmModal
-        isOpen={isDeleteModalOpen}
-        onClose={() => {
-          setIsDeleteModalOpen(false);
-          setSelectedRecordId(null);
-        }}
-        onConfirm={handleDeleteRecord}
-        title="Delete Nursing Record"
-        message="Are you sure you want to delete this nursing record? This cannot be undone."
-        confirmLabel="Delete"
-        confirmClassName="bg-red-600 hover:bg-red-700"
-      />
     </div>
   );
 }

@@ -89,7 +89,7 @@ export default function Navbar() {
               alt="DoctorClinic Logo"
               className="h-10 w-10 object-contain"
             />
-            <span className="text-2xl font-bold">Sushodh Doctor Clinic</span>
+            <span className="text-2xl font-bold">Doctor Clinic</span>
           </NavLink>
 
           {/* ================= Desktop Menu ================= */}
