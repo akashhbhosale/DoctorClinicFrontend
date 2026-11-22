@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import PrescriptionPaper from "../components/PrescriptionPaper";
 import Select from "react-select";
 import { useParams, useNavigate } from "react-router-dom";
 
@@ -40,6 +41,7 @@ const formatTime = (value) => {
 };
 
 export default function Nursing() {
+  const [showSummary, setShowSummary] = useState(false);
   const { id } = useParams();
   const navigate = useNavigate();
   const { doctor } = useDoctor();
@@ -601,6 +603,14 @@ export default function Nursing() {
             );
           })}
         </div>
+        <button type="button" disabled={!encounterId || !activePatient?.id || !doctor?.id}
+          className="mt-4 rounded-xl bg-blue-900 px-5 py-3 text-white disabled:opacity-50"
+          onClick={() => setShowSummary(true)}>Preview Encounter Summary</button>
+        {showSummary && encounterId && activePatient?.id && doctor?.id && (
+          <PrescriptionPaper key={`${activePatient.id}-${encounterId}-${doctor.id}`} summary
+            patient={activePatient} doctor={doctor} encounterId={encounterId}
+            onClose={() => setShowSummary(false)} />
+        )}
       </div>
     </div>
   );

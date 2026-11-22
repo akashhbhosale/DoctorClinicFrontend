@@ -2,11 +2,15 @@ import { useState, useEffect } from "react";
 import Select from "react-select";
 import { useParams, useNavigate } from "react-router-dom";
 
+import PrescriptionPaper from "../components/PrescriptionPaper";
 import SectionHeader from "../components/SectionHeader";
 import PatientSelectionRequired from "../components/PatientSelectionRequired";
 import { usePatient } from "../context/PatientContext";
 import { useDoctor } from "../context/DoctorContext";
 import { createEncounter } from "../services/encounterApi";
+import { createPrescriptionTemplate } from "../services/prescriptionTemplateApi";
+
+import { getPrescriptionTemplates } from "../services/prescriptionTemplateApi";
 import {
   getMedicineMaster,
   getDoseFormMaster,
@@ -43,13 +47,14 @@ const lateralityOptions = [
 
 export default function Medication() {
   const { id } = useParams();
-  const navigate = useNavigate();
+  const { activePatient } = usePatient();
   const { doctor } = useDoctor();
+  const patientId = id || activePatient?.id;
+  return <MedicationForm key={JSON.stringify([patientId, doctor?.id])} patientId={patientId} activePatient={activePatient} doctor={doctor} />;
+}
 
-  const patientContext = usePatient();
-  const activePatient = patientContext?.activePatient;
-  const patientId = activePatient?.id || id;
-
+function MedicationForm({ patientId, activePatient, doctor }) {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [encounterId, setEncounterId] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
@@ -68,6 +73,7 @@ export default function Medication() {
   const [duration, setDuration] = useState("");
   const [medComment, setMedComment] = useState("");
   const [medications, setMedications] = useState([]);
+  
   const [medLoading, setMedLoading] = useState(false);
 
   /* ============ SURGICAL TREATMENT FORM ============ */
@@ -85,6 +91,25 @@ export default function Medication() {
   const [followUpInstructions, setFollowUpInstructions] = useState("");
   const [followUpLoading, setFollowUpLoading] = useState(false);
   const [followUpSaved, setFollowUpSaved] = useState(false);
+
+  /* ============ PRESCRIPTION TEMPLATES ============ */
+const [prescriptionTemplates, setPrescriptionTemplates] = useState([]);
+const [templateLoading, setTemplateLoading] = useState(false);
+
+const [showTemplateForm, setShowTemplateForm] = useState(false);
+const [templateName, setTemplateName] = useState("");
+const [templateDescription, setTemplateDescription] = useState("");
+
+useEffect(() => {
+  console.log(
+    "Medication records:",
+    JSON.stringify(medications, null, 2)
+  );
+}, [medications]);
+
+useEffect(() => {
+  console.log("Active Patient:", activePatient);
+}, [activePatient]);
 
   const getEncounterStorageKey = () => `currentEncounter_${patientId}`;
 
@@ -131,13 +156,24 @@ export default function Medication() {
   const loadDoseFormOptions = async (search = "") => {
     try {
       const res = await getDoseFormMaster(search, 0, 20);
+  
+      console.log("Dose Form API Response:", res.data);
+  
       setDoseFormOptions(
-        res.data.content.map((m) => ({ value: m.id, label: m.doseFormName }))
+        res.data.content.map((m) => ({
+          value: m.id,
+          label: m.doseFormName,
+        }))
       );
     } catch (error) {
-      console.error("Load dose form error:", error?.response?.data || error);
+      console.error(
+        "Load dose form error:",
+        error?.response?.data || error
+      );
     }
   };
+  
+  
 
   const loadRouteOptions = async (search = "") => {
     try {
@@ -177,6 +213,7 @@ export default function Medication() {
     loadRouteOptions();
     loadDirectionOptions();
     loadSurgeryOptions();
+    console.log("Dose Form Options:", doseFormOptions);
   }, []);
 
   // Medicine dropdown reloads whenever the Generics/Brand toggle changes,
@@ -357,6 +394,78 @@ export default function Medication() {
     }
   };
 
+  const loadPrescriptionTemplates = async () => {
+    try {
+      setTemplateLoading(true);
+      const res = await getPrescriptionTemplates();
+      setPrescriptionTemplates(res.data || []);
+    } catch (error) {
+      console.error(
+        "Load prescription templates error:",
+        error?.response?.data || error
+      );
+    } finally {
+      setTemplateLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPrescriptionTemplates();
+  }, []);
+
+  const handleSavePrescriptionTemplate = async () => {
+    if (!templateName.trim()) {
+      alert("Please enter a template name");
+      return;
+    }
+  
+    if (medications.length === 0) {
+      alert("Please add at least one medicine before saving a template");
+      return;
+    }
+  
+    try {
+      setTemplateLoading(true);
+  
+      const payload = {
+        templateName: templateName.trim(),
+        description: templateDescription.trim() || null,
+        medicines: medications.map((item) => ({
+          medicineMasterId: item.medicineMasterId,
+          doseFormId: item.doseFormId || null,
+          routeOfAdministrationId: item.routeOfAdministrationId || null,
+          directionOfUseId: item.directionOfUseId,
+          dosage: item.dosage,
+          durationDays: item.durationDays,
+          comment: item.comment || null,
+        })),
+      };
+  
+      await createPrescriptionTemplate(payload);
+  
+      alert("Prescription template saved successfully!");
+  
+      setTemplateName("");
+      setTemplateDescription("");
+      setShowTemplateForm(false);
+  
+      await loadPrescriptionTemplates();
+    } catch (error) {
+      console.error(
+        "Save prescription template error:",
+        error?.response?.data || error
+      );
+  
+      alert(
+        error?.response?.data?.message ||
+        "Failed to save prescription template"
+      );
+    } finally {
+      setTemplateLoading(false);
+    }
+  };
+
+
   /* ================= RENDER ================= */
   if (!patientId) {
     return (
@@ -401,6 +510,118 @@ export default function Medication() {
 
           {/* ================= MEDICATION ================= */}
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-5">
+            {/* ================= PRESCRIPTION TEMPLATES ================= */}
+<div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4 space-y-3">
+  <div className="flex items-center justify-between flex-wrap gap-3">
+    <div>
+      <h3 className="font-semibold text-slate-800">
+        Prescription Templates
+      </h3>
+      <p className="text-sm text-slate-500">
+        Apply a saved prescription template.
+      </p>
+    </div>
+
+    <button
+      type="button"
+      onClick={loadPrescriptionTemplates}
+      disabled={templateLoading}
+      className="text-sm text-blue-800 hover:text-blue-900 font-medium"
+    >
+      {templateLoading ? "Loading..." : "Refresh Templates"}
+    </button>
+  </div>
+
+  {prescriptionTemplates.length === 0 ? (
+    <p className="text-sm text-slate-500">
+      No prescription templates available.
+    </p>
+  ) : (
+    <Select
+      options={prescriptionTemplates.map((template) => ({
+        value: template.id,
+        label: template.templateName,
+      }))}
+      placeholder="Select Prescription Template"
+      isSearchable
+      isClearable
+      menuPortalTarget={document.body}
+      menuPosition="fixed"
+      styles={selectStyles}
+    />
+  )}
+
+
+{/* SAVE PRESCRIPTION TEMPLATE MODAL */}
+{showTemplateForm && (
+  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 space-y-5">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-slate-900">
+          Save Prescription Template
+        </h2>
+
+        <button
+          type="button"
+          onClick={() => setShowTemplateForm(false)}
+          className="text-slate-400 hover:text-slate-700 text-2xl"
+        >
+          ×
+        </button>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">
+          Template Name *
+        </label>
+        <input
+          value={templateName}
+          onChange={(e) => setTemplateName(e.target.value)}
+          placeholder="Enter template name"
+          className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">
+          Description
+        </label>
+        <textarea
+          value={templateDescription}
+          onChange={(e) => setTemplateDescription(e.target.value)}
+          placeholder="Enter description (optional)"
+          rows={3}
+          className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+        />
+      </div>
+
+      <p className="text-sm text-slate-500">
+        Medicines included: {medications.length}
+      </p>
+
+      <div className="flex justify-end gap-3">
+        <button
+          type="button"
+          onClick={() => setShowTemplateForm(false)}
+          className="rounded-lg border border-slate-300 px-5 py-2 text-slate-700 hover:bg-slate-50"
+        >
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          onClick={handleSavePrescriptionTemplate}
+          disabled={templateLoading}
+          className="rounded-lg bg-blue-900 text-white px-5 py-2 hover:bg-blue-800 disabled:opacity-50"
+        >
+          {templateLoading ? "Saving..." : "Save Template"}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+</div>
             <div>
               <h2 className="text-lg font-semibold text-slate-900">Medication</h2>
               <p className="text-sm text-slate-500">
@@ -551,14 +772,24 @@ export default function Medication() {
               </div>
             </div>
 
-            <button
-              onClick={addMedicationRecord}
-              disabled={medLoading}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-900 text-white px-5 py-2.5 font-medium hover:bg-blue-800 shadow transition disabled:opacity-50"
-            >
-              <span className="text-lg leading-none">+</span>{" "}
-              {medLoading ? "Saving..." : "Add"}
-            </button>
+            <div className="flex flex-wrap gap-3">
+  <button
+    onClick={addMedicationRecord}
+    disabled={medLoading}
+    className="inline-flex items-center gap-2 rounded-lg bg-blue-900 text-white px-5 py-2.5 font-medium hover:bg-blue-800 shadow transition disabled:opacity-50"
+  >
+    <span className="text-lg leading-none">+</span>{" "}
+    {medLoading ? "Saving..." : "Add"}
+  </button>
+
+  <button
+    type="button"
+    onClick={() => setShowTemplateForm(true)}
+    className="inline-flex items-center gap-2 rounded-lg border border-blue-900 text-blue-900 px-5 py-2.5 font-medium hover:bg-blue-50 transition"
+  >
+    Save as Template
+  </button>
+</div>
 
             {medications.length > 0 && (
               <div className="overflow-x-auto rounded-xl border border-slate-200">
@@ -797,10 +1028,11 @@ export default function Medication() {
           {/* ================= PRESCRIPTION PREVIEW ================= */}
           <div className="flex justify-center">
             <button
+              disabled={!encounterId || !doctor?.id || String(activePatient?.id) !== String(patientId) || medLoading || surgeryLoading || followUpLoading}
               onClick={() => setShowPreview(true)}
               className="bg-green-700 text-white px-8 py-3 rounded-lg hover:bg-green-800 shadow-sm transition font-medium"
             >
-              Prescription Preview
+              Preview on Prescription Paper
             </button>
           </div>
         </div>
@@ -808,108 +1040,7 @@ export default function Medication() {
 
       {/* PREVIEW MODAL */}
       {showPreview && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[85vh] overflow-y-auto p-8">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-slate-900">
-                Prescription Preview
-              </h2>
-              <button
-                onClick={() => setShowPreview(false)}
-                className="text-slate-400 hover:text-slate-700 text-2xl leading-none"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="space-y-6 text-sm">
-              <div>
-                <p className="text-slate-500">
-                  Doctor: <span className="text-slate-800">{doctor?.fullName}</span>
-                </p>
-                <p className="text-slate-500">
-                  Patient:{" "}
-                  <span className="text-slate-800">
-                    {activePatient?.fullName}
-                  </span>
-                </p>
-                <p className="text-slate-500">
-                  Encounter ID:{" "}
-                  <span className="text-slate-800">{encounterId || "-"}</span>
-                </p>
-              </div>
-
-              <div>
-                <h3 className="font-semibold text-slate-800 mb-2">
-                  Medications
-                </h3>
-                {medications.length === 0 ? (
-                  <p className="text-slate-400">No medications prescribed.</p>
-                ) : (
-                  <ol className="list-decimal list-inside space-y-1">
-                    {medications.map((m) => (
-                      <li key={m.id}>
-                        {m.medicineName} — {m.dosage}, {m.directionOfUse},{" "}
-                        {m.durationDays} days
-                        {m.doseForm ? ` (${m.doseForm})` : ""}
-                        {m.comment ? ` — ${m.comment}` : ""}
-                      </li>
-                    ))}
-                  </ol>
-                )}
-              </div>
-
-              <div>
-                <h3 className="font-semibold text-slate-800 mb-2">
-                  Surgical Treatment
-                </h3>
-                {surgicalTreatments.length === 0 ? (
-                  <p className="text-slate-400">No surgical treatment recorded.</p>
-                ) : (
-                  <ol className="list-decimal list-inside space-y-1">
-                    {surgicalTreatments.map((s) => (
-                      <li key={s.id}>
-                        {s.surgeryName}
-                        {s.laterality ? ` (${s.laterality})` : ""}
-                        {s.site ? ` — Site: ${s.site}` : ""}
-                        {s.method ? `, Method: ${s.method}` : ""}
-                        {s.device ? `, Device: ${s.device}` : ""}
-                      </li>
-                    ))}
-                  </ol>
-                )}
-              </div>
-
-              <div>
-                <h3 className="font-semibold text-slate-800 mb-2">Follow Up</h3>
-                {!followUpDate && !followUpInstructions ? (
-                  <p className="text-slate-400">No follow-up set.</p>
-                ) : (
-                  <p>
-                    {followUpDate ? `Date: ${followUpDate}` : ""}
-                    {followUpDate && followUpInstructions ? " — " : ""}
-                    {followUpInstructions}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div className="mt-8 flex justify-end gap-3">
-              <button
-                onClick={() => window.print()}
-                className="rounded-lg border border-slate-300 px-5 py-2 text-slate-700 hover:bg-slate-50"
-              >
-                Print
-              </button>
-              <button
-                onClick={() => setShowPreview(false)}
-                className="rounded-lg bg-blue-900 text-white px-5 py-2 hover:bg-blue-800"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
+        <PrescriptionPaper encounterId={encounterId} doctor={doctor} patient={activePatient} onClose={() => setShowPreview(false)} />
       )}
     </div>
   );
