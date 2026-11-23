@@ -1,3 +1,4 @@
+import usePageSave from "../hooks/usePageSave";
 import { useState, useEffect } from "react";
 import Select from "react-select";
 import { useParams, useNavigate } from "react-router-dom";
@@ -7,7 +8,7 @@ import SectionHeader from "../components/SectionHeader";
 import PatientSelectionRequired from "../components/PatientSelectionRequired";
 import { usePatient } from "../context/PatientContext";
 import { useDoctor } from "../context/DoctorContext";
-import { createEncounter } from "../services/encounterApi";
+
 import { createPrescriptionTemplate } from "../services/prescriptionTemplateApi";
 
 import { getPrescriptionTemplates } from "../services/prescriptionTemplateApi";
@@ -45,18 +46,18 @@ const lateralityOptions = [
   { value: "BILATERAL", label: "Bilateral" },
 ];
 
-export default function Medication() {
+export default function Medication({ encounterId }) {
   const { id } = useParams();
   const { activePatient } = usePatient();
   const { doctor } = useDoctor();
   const patientId = id || activePatient?.id;
-  return <MedicationForm key={JSON.stringify([patientId, doctor?.id])} patientId={patientId} activePatient={activePatient} doctor={doctor} />;
+  return <MedicationForm encounterId={encounterId} key={JSON.stringify([patientId, doctor?.id])} patientId={patientId} activePatient={activePatient} doctor={doctor} />;
 }
 
-function MedicationForm({ patientId, activePatient, doctor }) {
+function MedicationForm({ encounterId, patientId, activePatient, doctor }) {
+  const { saving, runSave } = usePageSave("/nursing");
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [encounterId, setEncounterId] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
 
   /* ============ MEDICATION FORM ============ */
@@ -90,6 +91,7 @@ function MedicationForm({ patientId, activePatient, doctor }) {
   const [followUpDate, setFollowUpDate] = useState("");
   const [followUpInstructions, setFollowUpInstructions] = useState("");
   const [followUpLoading, setFollowUpLoading] = useState(false);
+  const [followUpEdited, setFollowUpEdited] = useState(false);
   const [followUpSaved, setFollowUpSaved] = useState(false);
 
   /* ============ PRESCRIPTION TEMPLATES ============ */
@@ -111,35 +113,7 @@ useEffect(() => {
   console.log("Active Patient:", activePatient);
 }, [activePatient]);
 
-  const getEncounterStorageKey = () => `currentEncounter_${patientId}`;
 
-  const ensureEncounterExists = async () => {
-    if (encounterId) return encounterId;
-
-    const savedEncounterId = sessionStorage.getItem(getEncounterStorageKey());
-    if (savedEncounterId) {
-      const parsedId = Number(savedEncounterId);
-      if (!Number.isNaN(parsedId)) {
-        setEncounterId(parsedId);
-        return parsedId;
-      }
-    }
-
-    if (!doctor?.id) {
-      throw new Error("Doctor information not loaded");
-    }
-
-    const res = await createEncounter({
-      patientId: Number(patientId),
-      doctorId: doctor.id,
-    });
-    const newEncounterId = res.data.id;
-
-    setEncounterId(newEncounterId);
-    sessionStorage.setItem(getEncounterStorageKey(), String(newEncounterId));
-
-    return newEncounterId;
-  };
 
   /* ---------------- Load master dropdowns ---------------- */
   const loadMedicineOptions = async (search = "") => {
@@ -260,20 +234,12 @@ useEffect(() => {
   };
 
   useEffect(() => {
-    if (!patientId) return;
-
-    const savedEncounterId = sessionStorage.getItem(getEncounterStorageKey());
-    if (!savedEncounterId) return;
-
-    const parsedId = Number(savedEncounterId);
-    if (Number.isNaN(parsedId)) return;
-
-    setEncounterId(parsedId);
+    const parsedId = encounterId;
     loadMedications(parsedId);
     loadSurgicalTreatments(parsedId);
     loadFollowUp(parsedId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [patientId]);
+  }, [patientId, encounterId]);
 
   /* ---------------- Medication add/remove ---------------- */
   const addMedicationRecord = async () => {
@@ -284,7 +250,7 @@ useEffect(() => {
 
     try {
       setMedLoading(true);
-      const currentEncounterId = await ensureEncounterExists();
+      const currentEncounterId = encounterId;
 
       await addEncounterMedication({
         encounterId: currentEncounterId,
@@ -306,6 +272,7 @@ useEffect(() => {
       setMedComment("");
 
       await loadMedications(currentEncounterId);
+      return true;
     } catch (error) {
       console.error("Add medication error:", error?.response?.data || error);
       alert(error?.response?.data?.message || "Failed to add medication");
@@ -335,7 +302,7 @@ useEffect(() => {
 
     try {
       setSurgeryLoading(true);
-      const currentEncounterId = await ensureEncounterExists();
+      const currentEncounterId = encounterId;
 
       await addEncounterSurgicalTreatment({
         encounterId: currentEncounterId,
@@ -353,6 +320,7 @@ useEffect(() => {
       setDevice("");
 
       await loadSurgicalTreatments(currentEncounterId);
+      return true;
     } catch (error) {
       console.error("Add surgical treatment error:", error?.response?.data || error);
       alert(error?.response?.data?.message || "Failed to add surgical treatment");
@@ -377,15 +345,17 @@ useEffect(() => {
   const saveFollowUp = async () => {
     try {
       setFollowUpLoading(true);
-      const currentEncounterId = await ensureEncounterExists();
+      const currentEncounterId = encounterId;
 
       await saveEncounterFollowUp(currentEncounterId, {
         followUpDate: followUpDate || null,
         followUpInstructions: followUpInstructions.trim() || null,
       });
 
+      setFollowUpEdited(false);
       setFollowUpSaved(true);
       setTimeout(() => setFollowUpSaved(false), 3000);
+      return true;
     } catch (error) {
       console.error("Save follow-up error:", error?.response?.data || error);
       alert(error?.response?.data?.message || "Failed to save follow-up");
@@ -478,8 +448,19 @@ useEffect(() => {
     );
   }
 
+  async function savePage() {
+    if (showTemplateForm && (templateName.trim() || templateDescription.trim())) {
+      alert("Save or cancel the prescription template before continuing.");
+      return false;
+    }
+    if ((medicine || doseForm || route || direction || dosage || duration || medComment) && !(await addMedicationRecord())) return false;
+    if ((surgery || laterality || site || method || device) && !(await addSurgicalTreatmentRecord())) return false;
+    if ((followUpEdited) && !(await saveFollowUp())) return false;
+    return true;
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50 p-6">
+    <fieldset disabled={saving} className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50 p-6">
       <div className="w-full bg-white/90 backdrop-blur rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
         <SectionHeader title="Medication" />
 
@@ -996,7 +977,7 @@ useEffect(() => {
                 <input
                   type="date"
                   value={followUpDate}
-                  onChange={(e) => setFollowUpDate(e.target.value)}
+                  onChange={(e) => { setFollowUpEdited(true); setFollowUpDate(e.target.value); }}
                   className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500"
                 />
               </div>
@@ -1007,7 +988,7 @@ useEffect(() => {
                 </label>
                 <input
                   value={followUpInstructions}
-                  onChange={(e) => setFollowUpInstructions(e.target.value)}
+                  onChange={(e) => { setFollowUpEdited(true); setFollowUpInstructions(e.target.value); }}
                   placeholder="Follow Up Instructions"
                   className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500"
                 />
@@ -1035,6 +1016,14 @@ useEffect(() => {
               Preview on Prescription Paper
             </button>
           </div>
+          <div className="flex justify-end">
+            <button type="button"
+                  className="rounded-lg bg-blue-600 px-5 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  onClick={() => runSave(savePage, true)}
+                  disabled={saving || medLoading || surgeryLoading || followUpLoading || templateLoading}>
+                  {saving ? "Saving…" : "Save & Continue"}
+                </button>
+          </div>
         </div>
       </div>
 
@@ -1042,6 +1031,6 @@ useEffect(() => {
       {showPreview && (
         <PrescriptionPaper encounterId={encounterId} doctor={doctor} patient={activePatient} onClose={() => setShowPreview(false)} />
       )}
-    </div>
+    </fieldset>
   );
 }

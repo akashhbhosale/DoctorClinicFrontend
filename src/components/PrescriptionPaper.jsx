@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { getEncounterDetails } from "../services/encounterApi";
+import { visitSummary, getEncounterDetails } from "../services/encounterApi";
 import { getEncounterMedication, getEncounterSurgicalTreatment, getEncounterFollowUp } from "../services/medicationApi";
 import { renderPrescription } from "./prescriptionDocument";
 
-import { loadEncounterSummary } from "./encounterSummary";
+
 import { readPdfPaper } from "./readPdfPaper";
 
 const defaultPaper = { image: "", top: 18, bottom: 18 };
@@ -61,16 +61,16 @@ export default function PrescriptionPaper({ encounterId, patient, doctor, onClos
     setRecord(null);
     setReady(false);
     frame.current?.contentDocument?.body.replaceChildren();
-    Promise.all([getEncounterDetails(encounterId), getEncounterMedication(encounterId),
-      getEncounterSurgicalTreatment(encounterId), getEncounterFollowUp(encounterId),
-      summary ? loadEncounterSummary(encounterId) : null])
-      .then(([details, medication, surgery, follow, summaryData]) => {
+    const load = summary ? visitSummary(encounterId).then(r => r.data) : Promise.all([getEncounterDetails(encounterId), getEncounterMedication(encounterId),
+      getEncounterSurgicalTreatment(encounterId), getEncounterFollowUp(encounterId)])
+      .then(([details, medication, surgery, follow]) => ({
+        visit: details.data, patient, doctor, medicines: medication.data, surgeries: surgery.data, followUp: follow.data,
+      }));
+    load.then(data => {
         if (!current) return;
-        const visit = details.data;
-        if (String(visit.patientId) !== String(patient.id) || String(visit.doctorId) !== String(doctor.id) ||
-          String(visit.encounterId) !== String(encounterId))
-          throw new Error("The selected visit does not match this patient and doctor.");
-        setRecord({ summary: summaryData, visit, patient, doctor, medicines: medication.data, surgeries: surgery.data, followUp: follow.data });
+        if (String(data.visit.patientId) !== String(patient.id) || String(data.visit.doctorId) !== String(doctor.id) ||
+            String(data.visit.encounterId) !== String(encounterId)) throw new Error("Visit does not match this patient and doctor.");
+        setRecord(data);
       }).catch(e => current && setError(e.response ? "Unable to load the saved encounter data. Try again." : e.message));
     return () => { current = false; };
   }, [encounterId,patient,doctor,attempt,summary]);

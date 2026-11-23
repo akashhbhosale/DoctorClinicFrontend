@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import usePatientList, { patientError } from "../../hooks/usePatientList";
+import http from "../../api/http";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import SectionHeader from "../../components/SectionHeader";
 import ConfirmModal from "../../components/ConfirmModal";
@@ -6,62 +8,25 @@ import ConfirmModal from "../../components/ConfirmModal";
 export default function ArchivedPatients() {
   const navigate = useNavigate();
 
-  const [patients, setPatients] = useState([]);
-  const [page, setPage] = useState(0);
-  const [size] = useState(10);
-  const [totalPages, setTotalPages] = useState(0);
+  const { patients, page, setPage, totalPages, loading, error, refresh } = usePatientList(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
+  const [saving, setSaving] = useState(false);
 
-  const fetchArchivedPatients = async () => {
+  async function confirmAction() {
+    if (saving || !selectedPatient) return;
+    setSaving(true);
     try {
-      const token = localStorage.getItem("token");
-
-      const response = await fetch(
-        `http://localhost:8080/api/patients/archived?page=${page}&size=${size}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      const data = await response.json();
-
-      setPatients(data.content || []);
-      setTotalPages(data.totalPages || 0);
-    } catch (error) {
-      console.error("Error fetching archived patients:", error);
-    }
-  };
-
-  useEffect(() => {
-    fetchArchivedPatients();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page]);
-
-  const handleRestoreConfirm = async () => {
-    try {
-      const token = localStorage.getItem("token");
-
-      await fetch(
-        `http://localhost:8080/api/patients/restore/${selectedPatient.id}`,
-        {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
+      await http.put(`/api/patients/restore/${selectedPatient.id}`);
       setIsModalOpen(false);
       setSelectedPatient(null);
-      fetchArchivedPatients(); // refresh list
+      refresh();
     } catch (error) {
-      console.error("Error restoring patient:", error);
-      alert("Restore failed");
+      window.alert(patientError(error, "The change could not be confirmed. Refresh the list and try again."));
+    } finally {
+      setSaving(false);
     }
-  };
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 via-white to-blue-50 p-6">
@@ -85,6 +50,8 @@ export default function ArchivedPatients() {
             </button>
           </div>
 
+          {loading && <p role="status">Loading patients…</p>}
+          {error && <p role="alert">{error} <button onClick={refresh} className="underline">Retry</button></p>}
           {/* TABLE */}
           <div className="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
             <table className="w-full text-sm text-left">
@@ -99,7 +66,7 @@ export default function ArchivedPatients() {
               </thead>
 
               <tbody>
-                {patients.length === 0 && (
+                {!loading && !error && patients.length === 0 && (
                   <tr>
                     <td colSpan={5} className="px-6 py-8 text-center text-slate-400">
                       No archived patients.
@@ -107,7 +74,7 @@ export default function ArchivedPatients() {
                   </tr>
                 )}
 
-                {patients.map((patient, index) => (
+                {!loading && patients.map((patient, index) => (
                   <tr
                     key={patient.id}
                     className={`border-t ${
@@ -146,12 +113,12 @@ export default function ArchivedPatients() {
           {totalPages > 0 && (
             <div className="flex justify-between items-center px-6 py-4 border-t bg-slate-50">
               <span className="text-sm text-slate-600">
-                Showing page {page + 1} of {totalPages}
+                {totalPages > 0 ? `Showing page ${page + 1} of ${totalPages}` : ""}
               </span>
 
               <div className="flex gap-2">
                 <button
-                  disabled={page === 0}
+                  disabled={loading || page === 0}
                   onClick={() => setPage((prev) => prev - 1)}
                   className="px-3 py-1 border rounded-lg disabled:opacity-50"
                 >
@@ -159,7 +126,7 @@ export default function ArchivedPatients() {
                 </button>
 
                 <button
-                  disabled={page === totalPages - 1}
+                  disabled={loading || page + 1 >= totalPages}
                   onClick={() => setPage((prev) => prev + 1)}
                   className="px-3 py-1 border rounded-lg disabled:opacity-50"
                 >
@@ -175,7 +142,8 @@ export default function ArchivedPatients() {
       <ConfirmModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onConfirm={handleRestoreConfirm}
+        busy={saving}
+        onConfirm={confirmAction}
         title="Restore Patient"
         message={`Restore ${selectedPatient?.fullName}? They will reappear in your active patient list with all their records intact.`}
         confirmLabel="Restore"

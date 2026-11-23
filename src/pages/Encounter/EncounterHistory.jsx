@@ -1,3 +1,6 @@
+import EditEncounterButton from "../../components/EditEncounterButton";
+import PrescriptionPaper from "../../components/PrescriptionPaper";
+import { useDoctor } from "../../context/DoctorContext";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { usePatient } from "../../context/PatientContext";
@@ -5,11 +8,12 @@ import SectionHeader from "../../components/SectionHeader";
 import {
   getEncounterDetails,
   getEncountersByPatient,
-  deleteEncounter,
 } from "../../services/encounterApi";
-import ConfirmModal from "../../components/ConfirmModal";
+import DeleteEncounterButton from "../../components/DeleteEncounterButton";
 
 export default function EncounterHistory() {
+  const [printId, setPrintId] = useState(null);
+  const { doctor } = useDoctor();
   const { id } = useParams();
   const navigate = useNavigate();
   const { activePatient } = usePatient();
@@ -20,9 +24,10 @@ export default function EncounterHistory() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [selectedEncounterId, setSelectedEncounterId] = useState(null);
-  const [deleting, setDeleting] = useState(false);
+
+  const startNewEncounter = () => {
+    navigate(`/patients/${patientId}/encounter`);
+  };
 
   const loadEncounterHistory = async () => {
     try {
@@ -56,30 +61,6 @@ export default function EncounterHistory() {
     return notes.length > 120 ? `${notes.slice(0, 120)}...` : notes;
   };
 
-  const openDeleteModal = (encounterId) => {
-    setSelectedEncounterId(encounterId);
-    setIsDeleteModalOpen(true);
-  };
-
-  const handleDeleteEncounter = async () => {
-    if (!selectedEncounterId) return;
-
-    try {
-      setDeleting(true);
-
-      await deleteEncounter(selectedEncounterId);
-
-      setIsDeleteModalOpen(false);
-      setSelectedEncounterId(null);
-
-      await loadEncounterHistory();
-    } catch (err) {
-      console.error("Error deleting encounter:", err);
-      alert("Failed to delete encounter");
-    } finally {
-      setDeleting(false);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-slate-100 p-6 rounded-2xl">
@@ -95,10 +76,10 @@ export default function EncounterHistory() {
             </div>
 
             <button
-              onClick={() => navigate(`/patients/${patientId}/encounter`)}
+              onClick={startNewEncounter}
               className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 shadow-sm transition font-medium"
             >
-              New Encounter
+              Open Encounter
             </button>
           </div>
 
@@ -125,7 +106,7 @@ export default function EncounterHistory() {
                 >
                   {/* Heading */}
                   <h2 className="text-xl font-bold text-black text-center mb-5">
-                    Encounter {encounters.length - index}
+                    Encounter {encounters.length - index} {encounter.visitStatus && (" — " + encounter.visitStatus.replace("_", " "))}
                   </h2>
 
                   {/* Horizontal info row */}
@@ -171,23 +152,15 @@ export default function EncounterHistory() {
                           View
                         </button>
 
-                        <button
-                          onClick={() =>
-                            navigate(
-                              `/patients/${patientId}/encounter/${encounter.id}/edit`
-                            )
-                          }
-                          className="px-4 py-2 rounded-lg border border-blue-500 text-blue-600 hover:bg-blue-50 transition font-medium"
-                        >
-                          Edit
-                        </button>
+                        {encounter.visitStatus && encounter.doctorId === doctor?.id &&
+                          <button type="button" className="rounded-lg bg-blue-700 px-4 py-2 font-medium text-white shadow-sm hover:bg-blue-800" onClick={() => setPrintId(encounter.id)}>Preview Encounter Summary</button>}
+                        {encounter.visitStatus === "IN_PROGRESS" && encounter.doctorId === doctor?.id &&
+                          <button onClick={startNewEncounter}>Resume Encounter</button>}
+                        {encounter.visitStatus !== "COMPLETED" && doctor?.id && String(encounter.doctorId) === String(doctor.id) &&
+                          <EditEncounterButton patientId={patientId} encounterId={encounter.id} />}
 
-                        <button
-                          onClick={() => openDeleteModal(encounter.id)}
-                          className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition font-medium"
-                        >
-                          Delete
-                        </button>
+                        {doctor?.id && String(encounter.doctorId) === String(doctor.id) &&
+                          <DeleteEncounterButton encounterId={encounter.id} onDeleted={loadEncounterHistory} />}
                       </div>
                     </div>
                   </div>
@@ -207,16 +180,9 @@ export default function EncounterHistory() {
           )}
         </div>
       </div>
-      <ConfirmModal
-        isOpen={isDeleteModalOpen}
-        onClose={() => {
-          setIsDeleteModalOpen(false);
-          setSelectedEncounterId(null);
-        }}
-        onConfirm={handleDeleteEncounter}
-        title="Delete Encounter"
-        message="Are you sure you want to delete this encounter? This action will remove all related complaints, diagnoses, procedures, and notes."
-      />
+      {printId && doctor && activePatient && <PrescriptionPaper summary encounterId={printId}
+        patient={activePatient} doctor={doctor} onClose={() => setPrintId(null)} />}
+
     </div>
   );
 }

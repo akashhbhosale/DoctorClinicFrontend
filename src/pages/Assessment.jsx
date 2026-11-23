@@ -1,11 +1,11 @@
+import usePageSave from "../hooks/usePageSave";
 import { useState, useEffect } from "react";
 import Select from "react-select";
 import { useParams, useNavigate } from "react-router-dom";
 import SectionHeader from "../components/SectionHeader";
 import PatientSelectionRequired from "../components/PatientSelectionRequired";
 import { usePatient } from "../context/PatientContext";
-import { useDoctor } from "../context/DoctorContext";
-import { createEncounter } from "../services/encounterApi";
+
 import {
   getEncounterVitals,
   saveEncounterVitals,
@@ -46,19 +46,19 @@ const selectStyles = {
   }),
 };
 
-export default function Assessment() {
+export default function Assessment({ encounterId }) {
+  const { saving, runSave } = usePageSave("/allergies");
   const { id } = useParams();
   const navigate = useNavigate();
-  const { doctor } = useDoctor();
 
   const patientContext = usePatient();
   const activePatient = patientContext?.activePatient;
   const patientId = activePatient?.id || id;
 
   const [loading, setLoading] = useState(false);
-  const [encounterId, setEncounterId] = useState(null);
 
   /* ================= VITALS ================= */
+  const [vitalsEdited, setVitalsEdited] = useState(false);
   const [vitals, setVitals] = useState({
     systolic: "",
     diastolic: "",
@@ -123,7 +123,6 @@ export default function Assessment() {
   const [assessments, setAssessments] = useState([]);
   const [assessmentLoading, setAssessmentLoading] = useState(false);
 
-  const getEncounterStorageKey = () => `currentEncounter_${patientId}`;
 
   const resetVitalsForm = () => {
     setVitals({
@@ -153,35 +152,6 @@ export default function Assessment() {
     });
   };
 
-  const ensureEncounterExists = async () => {
-    if (encounterId) return encounterId;
-
-    const savedEncounterId = sessionStorage.getItem(getEncounterStorageKey());
-    if (savedEncounterId) {
-      const parsedId = Number(savedEncounterId);
-      if (!Number.isNaN(parsedId)) {
-        setEncounterId(parsedId);
-        return parsedId;
-      }
-    }
-
-    if (!doctor?.id) {
-      throw new Error("Doctor information not loaded");
-    }
-
-    const payload = {
-      patientId: Number(patientId),
-      doctorId: doctor.id,
-    };
-
-    const res = await createEncounter(payload);
-    const newEncounterId = res.data.id;
-
-    setEncounterId(newEncounterId);
-    sessionStorage.setItem(getEncounterStorageKey(), String(newEncounterId));
-
-    return newEncounterId;
-  };
 
   const loadVitals = async (currentEncounterId) => {
     if (!currentEncounterId) return;
@@ -223,10 +193,15 @@ export default function Assessment() {
     return value;
   };
 
+  function editVitals(next) {
+    setVitalsEdited(true);
+    setVitals(next);
+  }
+
   const handleTempUnitChange = (newUnit) => {
     if (vitals.tempUnit === newUnit) return;
 
-    setVitals((prev) => ({
+    editVitals((prev) => ({
       ...prev,
       temperature: convertTemperature(prev.temperature, prev.tempUnit, newUnit),
       tempUnit: newUnit,
@@ -267,7 +242,7 @@ export default function Assessment() {
     try {
       setLoading(true);
 
-      const currentEncounterId = await ensureEncounterExists();
+      const currentEncounterId = encounterId;
 
       const payload = {
         systolicBp: vitals.systolic ? Number(vitals.systolic) : null,
@@ -283,10 +258,11 @@ export default function Assessment() {
 
       const res = await saveEncounterVitals(currentEncounterId, payload);
 
-      setEncounterId(currentEncounterId);
+
       mapVitalsResponseToState(res.data);
 
-      alert("Vitals saved successfully");
+      setVitalsEdited(false);
+      return true;
     } catch (error) {
       console.error("Save vitals error:", error?.response?.data || error);
 
@@ -330,7 +306,7 @@ export default function Assessment() {
     try {
       setLabLoading(true);
 
-      const currentEncounterId = await ensureEncounterExists();
+      const currentEncounterId = encounterId;
 
       const payload = {
         encounterId: currentEncounterId,
@@ -344,6 +320,7 @@ export default function Assessment() {
       setLabResult("");
 
       await loadLaboratory(currentEncounterId);
+      return true;
     } catch (error) {
       console.error("Add laboratory error:", error?.response?.data || error);
 
@@ -506,7 +483,7 @@ export default function Assessment() {
     try {
       setRadiologyLoading(true);
 
-      const currentEncounterId = await ensureEncounterExists();
+      const currentEncounterId = encounterId;
 
       const payload = {
         encounterId: currentEncounterId,
@@ -520,6 +497,7 @@ export default function Assessment() {
       setRadiologyResult("");
 
       await loadRadiology(currentEncounterId);
+      return true;
     } catch (error) {
       console.error("Add radiology error:", error?.response?.data || error);
 
@@ -660,7 +638,7 @@ export default function Assessment() {
     try {
       setAssessmentLoading(true);
 
-      const currentEncounterId = await ensureEncounterExists();
+      const currentEncounterId = encounterId;
 
       const payload = {
         encounterId: currentEncounterId,
@@ -674,6 +652,7 @@ export default function Assessment() {
       setAssessmentResult("");
 
       await loadAssessments(currentEncounterId);
+      return true;
     } catch (error) {
       console.error("Add observation error:", error?.response?.data || error);
 
@@ -708,35 +687,13 @@ export default function Assessment() {
   };
 
   useEffect(() => {
-    if (!patientId) return;
-
-    const savedEncounterId = sessionStorage.getItem(getEncounterStorageKey());
-    if (!savedEncounterId) {
-      setEncounterId(null);
-      resetVitalsForm();
-      setLabs([]);
-      setRadiology([]);
-      setAssessments([]);
-      return;
-    }
-
-    const parsedId = Number(savedEncounterId);
-    if (Number.isNaN(parsedId)) {
-      setEncounterId(null);
-      resetVitalsForm();
-      setLabs([]);
-      setRadiology([]);
-      setAssessments([]);
-      return;
-    }
-
-    setEncounterId(parsedId);
+    const parsedId = encounterId;
     loadVitals(parsedId);
     loadLaboratory(parsedId);
     loadRadiology(parsedId);
     loadAssessments(parsedId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [patientId]);
+  }, [patientId, encounterId]);
 
   if (!patientId) {
     return (
@@ -749,8 +706,16 @@ export default function Assessment() {
     );
   }
 
+  async function savePage() {
+    if ((vitalsEdited) && !(await handleSaveVitals())) return false;
+    if ((selectedLaboratoryTest || labResult) && !(await addLab())) return false;
+    if ((selectedRadiologyOrder || radiologyResult) && !(await addRadiology())) return false;
+    if ((selectedObservation || assessmentResult) && !(await addAssessment())) return false;
+    return true;
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50 p-6">
+    <fieldset disabled={saving} className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50 p-6">
       <div className="w-full bg-white/90 backdrop-blur rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
         <SectionHeader title="Assessment" />
 
@@ -794,7 +759,7 @@ export default function Assessment() {
                 placeholder="Systolic BP"
                 value={vitals.systolic}
                 onChange={(e) =>
-                  setVitals({ ...vitals, systolic: e.target.value })
+                  editVitals({ ...vitals, systolic: e.target.value })
                 }
                 className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500"
               />
@@ -805,7 +770,7 @@ export default function Assessment() {
                 placeholder="Diastolic BP"
                 value={vitals.diastolic}
                 onChange={(e) =>
-                  setVitals({ ...vitals, diastolic: e.target.value })
+                  editVitals({ ...vitals, diastolic: e.target.value })
                 }
                 className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500"
               />
@@ -816,7 +781,7 @@ export default function Assessment() {
                 placeholder="Pulse Rate"
                 value={vitals.pulse}
                 onChange={(e) =>
-                  setVitals({ ...vitals, pulse: e.target.value })
+                  editVitals({ ...vitals, pulse: e.target.value })
                 }
                 className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500"
               />
@@ -827,7 +792,7 @@ export default function Assessment() {
                 placeholder="Respiratory Rate"
                 value={vitals.respiratory}
                 onChange={(e) =>
-                  setVitals({ ...vitals, respiratory: e.target.value })
+                  editVitals({ ...vitals, respiratory: e.target.value })
                 }
                 className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500"
               />
@@ -837,7 +802,7 @@ export default function Assessment() {
                 min="0"
                 placeholder="SpO2"
                 value={vitals.spo2}
-                onChange={(e) => setVitals({ ...vitals, spo2: e.target.value })}
+                onChange={(e) => editVitals({ ...vitals, spo2: e.target.value })}
                 className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500"
               />
 
@@ -848,7 +813,7 @@ export default function Assessment() {
                 placeholder="Height (cm)"
                 value={vitals.height}
                 onChange={(e) =>
-                  setVitals({ ...vitals, height: e.target.value })
+                  editVitals({ ...vitals, height: e.target.value })
                 }
                 className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500"
               />
@@ -860,7 +825,7 @@ export default function Assessment() {
                 placeholder="Weight (kg)"
                 value={vitals.weight}
                 onChange={(e) =>
-                  setVitals({ ...vitals, weight: e.target.value })
+                  editVitals({ ...vitals, weight: e.target.value })
                 }
                 className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500"
               />
@@ -874,7 +839,7 @@ export default function Assessment() {
                     placeholder="Temperature"
                     value={vitals.temperature}
                     onChange={(e) =>
-                      setVitals({ ...vitals, temperature: e.target.value })
+                      editVitals({ ...vitals, temperature: e.target.value })
                     }
                     className="w-full px-4 py-2.5 outline-none"
                   />
@@ -1337,8 +1302,16 @@ export default function Assessment() {
               </div>
             )}
           </section>
+          <div className="flex justify-end">
+            <button type="button"
+                  className="rounded-lg bg-blue-600 px-5 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  onClick={() => runSave(savePage, true)}
+                  disabled={saving || loading || labLoading || radiologyLoading || assessmentLoading || labFileLoadingId != null || radiologyFileLoadingId != null || deletingLabFileId != null || deletingRadiologyFileId != null}>
+                  {saving ? "Saving…" : "Save & Continue"}
+                </button>
+          </div>
         </div>
       </div>
-    </div>
+    </fieldset>
   );
 }

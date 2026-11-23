@@ -4,6 +4,7 @@ export default function ConfirmModal({
   onConfirm,
   title,
   message,
+  busy = false,
   confirmLabel = "Delete",
   confirmClassName = "bg-red-600 hover:bg-red-700",
 }) {
@@ -23,6 +24,7 @@ export default function ConfirmModal({
 
         <div className="flex justify-end gap-3">
           <button
+            disabled={busy}
             onClick={onClose}
             className="px-4 py-2 rounded-lg border text-gray-700 hover:bg-gray-100"
           >
@@ -30,6 +32,7 @@ export default function ConfirmModal({
           </button>
 
           <button
+            disabled={busy}
             onClick={onConfirm}
             className={`px-4 py-2 rounded-lg text-white ${confirmClassName}`}
           >

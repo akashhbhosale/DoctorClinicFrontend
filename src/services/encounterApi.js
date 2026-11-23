@@ -104,5 +104,11 @@ export const createEncounter = (payload) => api.post("/encounters", payload);
 export const getEncountersByPatient = (patientId) =>
   api.get(`/encounters/patient/${patientId}`);
 
-export const deleteEncounter = (encounterId) =>
-  api.delete(`/encounters/${encounterId}`);
+export const deleteEncounter = (encounterId, reason) =>
+  api.delete(`/encounters/${encounterId}`, { data: { reason } });
+export const activeVisit = patientId => api.get(`/visits/patient/${patientId}/active`);
+export const startVisit = patientId => api.post(`/visits/patient/${patientId}/start`);
+export const completeVisit = id => api.put(`/visits/${id}/complete`);
+export const visitSummary = id => api.get(`/visits/${id}/summary`);
+
+export const reopenVisit = (patientId, id) => api.put(`/visits/patient/${patientId}/${id}/reopen`);

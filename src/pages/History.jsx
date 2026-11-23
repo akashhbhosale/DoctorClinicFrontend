@@ -1,3 +1,4 @@
+import usePageSave from "../hooks/usePageSave";
 import { useState, useEffect } from "react";
 import Select from "react-select";
 import { usePatient } from "../context/PatientContext";
@@ -6,6 +7,7 @@ import SectionHeader from "../components/SectionHeader";
 import PatientSelectionRequired from "../components/PatientSelectionRequired";
 
 export default function History() {
+  const { saving, runSave } = usePageSave("/assessment");
   const { id } = useParams();
   const patientContext = usePatient();
   const activePatient = patientContext?.activePatient;
@@ -150,6 +152,7 @@ export default function History() {
       setYears("");
       setMonths("");
       setDays("");
+      return true;
     } catch (error) {
       console.error(error);
       setErrorMessage("Server error while adding past history.");
@@ -216,6 +219,7 @@ export default function History() {
       setFamilyHistoryList([...familyHistoryList, data]);
       setFamilyHistory(null);
       setRelationship(null);
+      return true;
     } catch (error) {
       console.error(error);
       setErrorMessage("Server error while adding family history.");
@@ -248,8 +252,14 @@ export default function History() {
     );
   }
 
+  async function savePage() {
+    if ((pmh || years || months || days) && !(await addPastHistory())) return false;
+    if ((familyHistory || relationship) && !(await addFamilyHistory())) return false;
+    return true;
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50 p-6">
+    <fieldset disabled={saving} className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50 p-6">
       <div className="w-full bg-white/90 backdrop-blur rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
         <SectionHeader title="Patient History" />
 
@@ -316,7 +326,7 @@ export default function History() {
               />
 
               <button
-                onClick={addPastHistory}
+                onClick={() => runSave(addPastHistory)}
                 className="rounded-lg bg-blue-600 text-white px-4 py-2.5 hover:bg-blue-700 shadow"
               >
                 Add
@@ -398,7 +408,7 @@ export default function History() {
               />
 
               <button
-                onClick={addFamilyHistory}
+                onClick={() => runSave(addFamilyHistory)}
                 className="rounded-lg bg-blue-600 text-white px-4 py-2.5 hover:bg-blue-700 shadow"
               >
                 Add
@@ -435,8 +445,16 @@ export default function History() {
               </div>
             )}
           </section>
+          <div className="flex justify-end">
+            <button type="button"
+                  className="rounded-lg bg-blue-600 px-5 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  onClick={() => runSave(savePage, true)}
+                  disabled={saving}>
+                  {saving ? "Saving…" : "Save & Continue"}
+                </button>
+          </div>
         </div>
       </div>
-    </div>
+    </fieldset>
   );
 }

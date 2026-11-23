@@ -1,12 +1,11 @@
+import usePageSave from "../hooks/usePageSave";
 import { useState, useEffect } from "react";
 import Select from "react-select";
 import SectionHeader from "../components/SectionHeader";
 import { useNavigate, useParams } from "react-router-dom";
 import { usePatient } from "../context/PatientContext";
 import PatientSelectionRequired from "../components/PatientSelectionRequired";
-import { useDoctor } from "../context/DoctorContext";
 import {
-  createEncounter,
   addEncounterComplaint,
   addEncounterDiagnosis,
   addEncounterProcedure,
@@ -38,10 +37,10 @@ const selectStyles = {
   }),
 };
 
-export default function Encounter() {
+export default function Encounter({ encounterId }) {
+  const { saving, runSave } = usePageSave("/history");
   const { id } = useParams();
   const navigate = useNavigate();
-  const { doctor } = useDoctor();
 
   const patientContext = usePatient();
   const activePatient = patientContext?.activePatient;
@@ -55,7 +54,6 @@ export default function Encounter() {
 
   const [loading, setLoading] = useState(false);
 
-  const [encounterId, setEncounterId] = useState(null);
 
   const [complaint, setComplaint] = useState(null);
   const [days, setDays] = useState("");
@@ -88,6 +86,7 @@ export default function Encounter() {
   const [laterality, setLaterality] = useState(null);
   const [priority, setPriority] = useState(null);
   const [procedures, setProcedures] = useState([]);
+  const [notesDraft, setNotesDraft] = useState(null);
   const [notes, setNotes] = useState("");
   const [complaintOptions, setComplaintOptions] = useState([]);
 
@@ -113,43 +112,7 @@ export default function Encounter() {
     { value: "HIGH", label: "High" },
   ];
 
-  const getEncounterStorageKey = () => `currentEncounter_${patientId}`;
 
-  const ensureEncounterExists = async () => {
-    if (encounterId) return encounterId;
-
-    const savedEncounterId = sessionStorage.getItem(getEncounterStorageKey());
-    if (savedEncounterId) {
-      const parsedId = Number(savedEncounterId);
-      if (!Number.isNaN(parsedId)) {
-        setEncounterId(parsedId);
-        return parsedId;
-      }
-    }
-
-    if (!doctor?.id) {
-      throw new Error("Doctor information not loaded");
-    }
-
-    try {
-      const payload = {
-        patientId: Number(patientId),
-        doctorId: doctor.id,
-      };
-
-      const res = await createEncounter(payload);
-      const newEncounterId = res.data.id;
-
-      setEncounterId(newEncounterId);
-      sessionStorage.setItem(getEncounterStorageKey(), String(newEncounterId));
-
-      return newEncounterId;
-    } catch (error) {
-      console.log("Create encounter error status:", error?.response?.status);
-      console.log("Create encounter error data:", error?.response?.data);
-      throw error;
-    }
-  };
 
   const addComplaint = async () => {
     if (!complaint || days === "") {
@@ -165,7 +128,7 @@ export default function Encounter() {
     try {
       setLoading(true);
 
-      const currentEncounterId = await ensureEncounterExists();
+      const currentEncounterId = encounterId;
 
       const payload = {
         encounterId: currentEncounterId,
@@ -179,6 +142,7 @@ export default function Encounter() {
       setDays("");
 
       await loadEncounterDetails(currentEncounterId);
+      return true;
     } catch (error) {
       console.error("Full add complaint error:", error);
       console.error("Backend error data:", error?.response?.data);
@@ -216,7 +180,7 @@ export default function Encounter() {
     try {
       setLoading(true);
 
-      const currentEncounterId = await ensureEncounterExists();
+      const currentEncounterId = encounterId;
 
       const payload = {
         encounterId: currentEncounterId,
@@ -231,6 +195,7 @@ export default function Encounter() {
       setIcdCode(null);
 
       await loadEncounterDetails(currentEncounterId);
+      return true;
     } catch (error) {
       const message =
         error?.response?.data?.message ||
@@ -311,7 +276,7 @@ export default function Encounter() {
     try {
       setLoading(true);
 
-      const currentEncounterId = await ensureEncounterExists();
+      const currentEncounterId = encounterId;
 
       const payload = {
         encounterId: currentEncounterId,
@@ -333,8 +298,9 @@ export default function Encounter() {
       setPriority(null);
 
       await loadEncounterDetails(currentEncounterId);
+      return true;
     } catch (error) {
-      console.error("Add procedure error:", error?.response?.data || error);
+      alert(error?.response?.data?.message || "Failed to add procedure");
     } finally {
       setLoading(false);
     }
@@ -423,34 +389,9 @@ export default function Encounter() {
   }, []);
 
   const saveEncounterNotes = async () => {
-    if (
-      complaints.length === 0 &&
-      diagnoses.length === 0 &&
-      procedures.length === 0 &&
-      !notes.trim()
-    ) {
-      alert(
-        "Please add at least one complaint, diagnosis, procedure, or notes"
-      );
-      return;
-    }
-
     try {
-      setLoading(true);
-
-      const currentEncounterId = await ensureEncounterExists();
-
-      if (notes.trim()) {
-        await updateEncounterNotes(currentEncounterId, {
-          notes: notes.trim(),
-        });
-      }
-
-      sessionStorage.removeItem(getEncounterStorageKey());
-
-      resetEncounterForm();
-
-      alert("Encounter saved successfully");
+      await updateEncounterNotes(encounterId, { notes: notesDraft.trim() });
+      return true;
     } catch (error) {
       console.error("Save notes error status:", error?.response?.status);
       console.error("Save notes error data:", error?.response?.data);
@@ -465,29 +406,6 @@ export default function Encounter() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const resetEncounterForm = () => {
-    setEncounterId(null);
-
-    setComplaint(null);
-    setDays("");
-    setComplaints([]);
-
-    setDiagnosisType(null);
-    setDiagnosis(null);
-    setIcdCode(null);
-    setDiagnoses([]);
-
-    setProcedure(null);
-    setSite(null);
-    setDevice(null);
-    setMethod(null);
-    setLaterality(null);
-    setPriority(null);
-    setProcedures([]);
-
-    setNotes("");
   };
 
   useEffect(() => {
@@ -552,29 +470,14 @@ export default function Encounter() {
         error?.response?.data || error
       );
 
-      sessionStorage.removeItem(`currentEncounter_${patientId}`);
-      setEncounterId(null);
-      setComplaints([]);
-      setDiagnoses([]);
-      setProcedures([]);
-      setNotes("");
+      alert("Could not load this encounter. Refresh to retry.");
     }
   };
 
   useEffect(() => {
-    if (!patientId) return;
-
-    const savedEncounterId = sessionStorage.getItem(
-      `currentEncounter_${patientId}`
-    );
-    if (!savedEncounterId) return;
-
-    const parsedId = Number(savedEncounterId);
-    if (Number.isNaN(parsedId)) return;
-
-    setEncounterId(parsedId);
+    const parsedId = encounterId;
     loadEncounterDetails(parsedId);
-  }, [patientId]);
+  }, [patientId, encounterId]);
 
   if (!patientId) {
     return (
@@ -587,8 +490,16 @@ export default function Encounter() {
     );
   }
 
+  async function savePage() {
+    if ((complaint || days) && !(await addComplaint())) return false;
+    if ((diagnosis || diagnosisType || icdCode) && !(await addDiagnosis())) return false;
+    if ((procedure || site || device || method || laterality || priority) && !(await addProcedure())) return false;
+    if ((notesDraft !== null) && !(await saveEncounterNotes())) return false;
+    return true;
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50 p-6">
+    <fieldset disabled={saving} className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50 p-6">
       <div className="w-full bg-white/90 backdrop-blur rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
         <SectionHeader title="Encounter" />
 
@@ -962,8 +873,8 @@ export default function Encounter() {
             </div>
 
             <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              value={notesDraft ?? notes}
+              onChange={(e) => setNotesDraft(e.target.value)}
               placeholder="Doctor notes..."
               className="w-full min-h-[140px] rounded-xl border border-slate-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500"
             />
@@ -973,7 +884,7 @@ export default function Encounter() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500 font-medium">
-                  Save this encounter or review previous encounter history.
+                  Save your progress and continue documenting the same visit.
                 </p>
               </div>
 
@@ -985,18 +896,17 @@ export default function Encounter() {
                   Encounter History
                 </button>
 
-                <button
-                  className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 shadow-sm transition font-medium disabled:opacity-50"
-                  onClick={saveEncounterNotes}
-                  disabled={loading}
-                >
-                  {loading ? "Saving..." : "Save Encounter"}
+                <button type="button"
+                  className="rounded-lg bg-blue-600 px-5 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  onClick={() => runSave(savePage, true)}
+                  disabled={saving || loading}>
+                  {saving ? "Saving…" : "Save & Continue"}
                 </button>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </fieldset>
   );
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { NavLink, useNavigate, useLocation } from "react-router-dom";
+import { editStepPath } from "../routes/editEncounterPath";
+import { matchPath, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { Menu, X, LogOut, ChevronDown } from "lucide-react";
 import { usePatient } from "../context/PatientContext";
 import { useDoctor } from "../context/DoctorContext";
@@ -43,6 +44,12 @@ export default function Navbar() {
 
   const navClass = ({ isActive }) => (isActive ? activeClass : inactiveClass);
 
+  const moduleClass = (module, isActive) => {
+    const patientPage = matchPath(`/patients/:id/${module}`, location.pathname);
+    const historyPage = matchPath(`/patients/:id/${module}-history`, location.pathname);
+    return isActive || patientPage || historyPage ? activeClass : inactiveClass;
+  };
+
   const isPatientsActive =
     location.pathname === "/patients" ||
     location.pathname === "/patients/new" ||
@@ -50,9 +57,7 @@ export default function Navbar() {
 
   const isEncounterActive =
     location.pathname === "/encounter" ||
-    /^\/patients\/[^/]+\/encounter$/.test(location.pathname) ||
-    /^\/patients\/[^/]+\/encounter\/[^/]+$/.test(location.pathname) ||
-    /^\/patients\/[^/]+\/encounters$/.test(location.pathname);
+    /^\/patients\/[^/]+\/encounters?(\/|$)/.test(location.pathname);
 
   /* ================= Close Dropdown on Outside Click ================= */
   useEffect(() => {
@@ -157,24 +162,24 @@ export default function Navbar() {
 
             {/* Core Pages */}
             <NavLink
-              to="/encounter"
+              to={editStepPath(location.pathname, "/encounter")}
               className={isEncounterActive ? activeClass : inactiveClass}
             >
               Encounter
             </NavLink>
-            <NavLink to="/history" className={navClass}>
+            <NavLink to={editStepPath(location.pathname, "/history")} className={navClass}>
               History
             </NavLink>
-            <NavLink to="/assessment" className={navClass}>
+            <NavLink to={editStepPath(location.pathname, "/assessment")} className={({ isActive }) => moduleClass("assessment", isActive)}>
               Assessment
             </NavLink>
-            <NavLink to="/allergies" className={navClass}>
+            <NavLink to={editStepPath(location.pathname, "/allergies")} className={navClass}>
               Allergies
             </NavLink>
-            <NavLink to="/medication" className={navClass}>
+            <NavLink to={editStepPath(location.pathname, "/medication")} className={({ isActive }) => moduleClass("medication", isActive)}>
               Medication
             </NavLink>
-            <NavLink to="/nursing" className={navClass}>
+            <NavLink to={editStepPath(location.pathname, "/nursing")} className={({ isActive }) => moduleClass("nursing", isActive)}>
               Nursing
             </NavLink>
 
@@ -228,43 +233,43 @@ export default function Navbar() {
           </NavLink>
 
           <NavLink
-            to="/encounter"
-            className={navClass}
+            to={editStepPath(location.pathname, "/encounter")}
+            className={isEncounterActive ? activeClass : inactiveClass}
             onClick={() => setIsOpen(false)}
           >
             Encounter
           </NavLink>
           <NavLink
-            to="/history"
+            to={editStepPath(location.pathname, "/history")}
             className={navClass}
             onClick={() => setIsOpen(false)}
           >
             History
           </NavLink>
           <NavLink
-            to="/assessment"
-            className={navClass}
+            to={editStepPath(location.pathname, "/assessment")}
+            className={({ isActive }) => moduleClass("assessment", isActive)}
             onClick={() => setIsOpen(false)}
           >
             Assessment
           </NavLink>
           <NavLink
-            to="/allergies"
+            to={editStepPath(location.pathname, "/allergies")}
             className={navClass}
             onClick={() => setIsOpen(false)}
           >
             Allergies
           </NavLink>
           <NavLink
-            to="/medication"
-            className={navClass}
+            to={editStepPath(location.pathname, "/medication")}
+            className={({ isActive }) => moduleClass("medication", isActive)}
             onClick={() => setIsOpen(false)}
           >
             Medication
           </NavLink>
           <NavLink
-            to="/nursing"
-            className={navClass}
+            to={editStepPath(location.pathname, "/nursing")}
+            className={({ isActive }) => moduleClass("nursing", isActive)}
             onClick={() => setIsOpen(false)}
           >
             Nursing

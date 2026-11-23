@@ -1,3 +1,4 @@
+import VisitPage from "../components/VisitPage";
 import { Routes, Route, Navigate } from "react-router-dom";
 
 import Login from "../pages/Login.jsx";
@@ -16,7 +17,6 @@ import ViewPatient from "../pages/Patients/ViewPatient";
 import EditPatient from "../pages/Patients/EditPatient";
 import EncounterHistory from "../pages/Encounter/EncounterHistory.jsx";
 import ViewEncounter from "../pages/Encounter/ViewEncounter.jsx";
-import EditEncounter from "../pages/Encounter/EditEncounter.jsx";
 import NursingHistory from "../pages/NursingHistory.jsx";
 import AssessmentHistory from "../pages/AssessmentHistory.jsx";
 import MedicationHistory from "../pages/MedicationHistory.jsx";
@@ -42,12 +42,12 @@ export default function AppRoutes() {
         }
       >
         <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/encounter" element={<Encounter />} />
-        <Route path="/assessment" element={<Assessment />} />
-        <Route path="/history" element={<History />} />
-        <Route path="/nursing" element={<Nursing />} />
-        <Route path="/allergies" element={<Allergies />} />
-        <Route path="/medication" element={<Medication />} />
+        <Route path="/encounter" element={<VisitPage page={Encounter} />} />
+        <Route path="/assessment" element={<VisitPage page={Assessment} />} />
+        <Route path="/history" element={<VisitPage page={History} patientPage />} />
+        <Route path="/nursing" element={<VisitPage page={Nursing} />} />
+        <Route path="/allergies" element={<VisitPage page={Allergies} patientPage />} />
+        <Route path="/medication" element={<VisitPage page={Medication} />} />
 
         <Route path="/patients" element={<PatientsList />} />
         <Route path="/patients/new" element={<AddPatient />} />
@@ -55,20 +55,26 @@ export default function AppRoutes() {
 
         <Route path="/patients/:id" element={<PatientLayout />}>
           <Route index element={<ViewPatient />} />
-          <Route path="history" element={<History />} />
-          <Route path="encounter" element={<Encounter />} />
+          <Route path="history" element={<VisitPage page={History} patientPage />} />
+          <Route path="encounter" element={<VisitPage page={Encounter} />} />
           <Route path="encounters" element={<EncounterHistory />} />
-          <Route path="nursing" element={<Nursing />} />
+          <Route path="nursing" element={<VisitPage page={Nursing} />} />
           <Route path="nursing-history" element={<NursingHistory />} />
-          <Route path="allergies" element={<Allergies />} />
+          <Route path="allergies" element={<VisitPage page={Allergies} patientPage />} />
+          <Route path="assessment" element={<VisitPage page={Assessment} />} />
           <Route path="assessment-history" element={<AssessmentHistory />} />
-          <Route path="medication" element={<Medication />} />
+          <Route path="medication" element={<VisitPage page={Medication} />} />
           <Route path="medication-history" element={<MedicationHistory />} />
           <Route path="encounter/:encounterId/view"
             element={<ViewEncounter />}
           />
-          <Route path="encounter/:encounterId/edit" element={<EditEncounter />} />
-          <Route path="encounter/:encounterId" element={<Encounter />} />
+          <Route path="encounter/:encounterId/edit" element={<VisitPage page={Encounter} />} />
+          <Route path="encounter/:encounterId/edit/history" element={<VisitPage page={History} />} />
+          <Route path="encounter/:encounterId/edit/assessment" element={<VisitPage page={Assessment} />} />
+          <Route path="encounter/:encounterId/edit/allergies" element={<VisitPage page={Allergies} />} />
+          <Route path="encounter/:encounterId/edit/medication" element={<VisitPage page={Medication} />} />
+          <Route path="encounter/:encounterId/edit/nursing" element={<VisitPage page={Nursing} />} />
+          <Route path="encounter/:encounterId" element={<VisitPage page={Encounter} />} />
         </Route>
 
         <Route path="/patients/edit/:id" element={<EditPatient />} />

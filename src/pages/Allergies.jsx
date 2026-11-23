@@ -1,3 +1,4 @@
+import usePageSave from "../hooks/usePageSave";
 import { useState, useEffect } from "react";
 import Select from "react-select";
 import { usePatient } from "../context/PatientContext";
@@ -18,6 +19,7 @@ const toLabel = (value) =>
     .join(" ");
 
 export default function Allergies() {
+  const { saving, runSave } = usePageSave("/medication");
   const { id } = useParams();
   const patientContext = usePatient();
   const activePatient = patientContext?.activePatient;
@@ -158,6 +160,7 @@ export default function Allergies() {
 
       setAllergyList([...allergyList, data]);
       resetForm();
+      return true;
     } catch (error) {
       console.error(error);
       setErrorMessage("Server error while adding allergy.");
@@ -190,8 +193,13 @@ export default function Allergies() {
     );
   }
 
+  async function savePage() {
+    if ((substance || criticality || verificationStatus || manifestations.length || comment) && !(await addAllergy())) return false;
+    return true;
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50 p-6">
+    <fieldset disabled={saving} className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50 p-6">
       <div className="w-full bg-white/90 backdrop-blur rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
         <SectionHeader title="Allergies" />
 
@@ -295,7 +303,7 @@ export default function Allergies() {
             </div>
 
             <button
-              onClick={addAllergy}
+              onClick={() => runSave(addAllergy)}
               className="inline-flex items-center gap-2 rounded-lg bg-blue-800 text-white px-5 py-2.5 font-medium hover:bg-blue-600 shadow transition"
             >
               <span className="text-lg leading-none">+</span> Add
@@ -341,8 +349,16 @@ export default function Allergies() {
               </div>
             )}
           </section>
+          <div className="flex justify-end">
+            <button type="button"
+                  className="rounded-lg bg-blue-600 px-5 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  onClick={() => runSave(savePage, true)}
+                  disabled={saving}>
+                  {saving ? "Saving…" : "Save & Continue"}
+                </button>
+          </div>
         </div>
       </div>
-    </div>
+    </fieldset>
   );
 }

@@ -1,3 +1,4 @@
+import { completeVisit } from "../services/encounterApi";
 import { useState, useEffect } from "react";
 import PrescriptionPaper from "../components/PrescriptionPaper";
 import Select from "react-select";
@@ -7,7 +8,7 @@ import SectionHeader from "../components/SectionHeader";
 import PatientSelectionRequired from "../components/PatientSelectionRequired";
 import { usePatient } from "../context/PatientContext";
 import { useDoctor } from "../context/DoctorContext";
-import { createEncounter } from "../services/encounterApi";
+
 import {
   getNursingAssessments,
   getNursingDiagnoses,
@@ -40,7 +41,7 @@ const formatTime = (value) => {
   return d.toLocaleString();
 };
 
-export default function Nursing() {
+export default function Nursing({ encounterId }) {
   const [showSummary, setShowSummary] = useState(false);
   const { id } = useParams();
   const navigate = useNavigate();
@@ -56,7 +57,6 @@ export default function Nursing() {
   };
 
   const [loading, setLoading] = useState(false);
-  const [encounterId, setEncounterId] = useState(null);
   const [savedMessage, setSavedMessage] = useState("");
 
   /* ============ NEW ASSESSMENT FORM ============ */
@@ -79,7 +79,6 @@ export default function Nursing() {
   const [drafts, setDrafts] = useState({});
   const [busyRecordId, setBusyRecordId] = useState(null);
 
-  const getEncounterStorageKey = () => `currentEncounter_${patientId}`;
 
   const getDraft = (recordId) =>
     drafts[recordId] || { intervention: null, time: "", note: "" };
@@ -91,33 +90,6 @@ export default function Nursing() {
     }));
   };
 
-  const ensureEncounterExists = async () => {
-    if (encounterId) return encounterId;
-
-    const savedEncounterId = sessionStorage.getItem(getEncounterStorageKey());
-    if (savedEncounterId) {
-      const parsedId = Number(savedEncounterId);
-      if (!Number.isNaN(parsedId)) {
-        setEncounterId(parsedId);
-        return parsedId;
-      }
-    }
-
-    if (!doctor?.id) {
-      throw new Error("Doctor information not loaded");
-    }
-
-    const res = await createEncounter({
-      patientId: Number(patientId),
-      doctorId: doctor.id,
-    });
-    const newEncounterId = res.data.id;
-
-    setEncounterId(newEncounterId);
-    sessionStorage.setItem(getEncounterStorageKey(), String(newEncounterId));
-
-    return newEncounterId;
-  };
 
   /* ---------------- Load dropdown options ---------------- */
   const toOptions = (res) =>
@@ -174,18 +146,10 @@ export default function Nursing() {
   };
 
   useEffect(() => {
-    if (!patientId) return;
-
-    const savedEncounterId = sessionStorage.getItem(getEncounterStorageKey());
-    if (!savedEncounterId) return;
-
-    const parsedId = Number(savedEncounterId);
-    if (Number.isNaN(parsedId)) return;
-
-    setEncounterId(parsedId);
+    const parsedId = encounterId;
     loadRecords(parsedId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [patientId]);
+  }, [patientId, encounterId]);
 
   const flashSaved = (message) => {
     setSavedMessage(message);
@@ -203,7 +167,7 @@ export default function Nursing() {
       setLoading(true);
       setSavedMessage("");
 
-      const currentEncounterId = await ensureEncounterExists();
+      const currentEncounterId = encounterId;
 
       await addNursingAssessmentRecord({
         encounterId: currentEncounterId,
@@ -220,6 +184,7 @@ export default function Nursing() {
 
       await loadRecords(currentEncounterId);
       flashSaved("Assessment saved. Add interventions below as you perform them.");
+      return true;
     } catch (error) {
       console.error("Add nursing assessment error:", error?.response?.data || error);
       alert(error?.response?.data?.message || "Failed to add nursing assessment");
@@ -273,6 +238,7 @@ export default function Nursing() {
 
       await loadRecords(encounterId);
       flashSaved("Intervention logged.");
+      return true;
     } catch (error) {
       console.error("Add intervention error:", error?.response?.data || error);
       alert(error?.response?.data?.message || "Failed to add intervention");
@@ -294,6 +260,29 @@ export default function Nursing() {
     }
   };
 
+  const [finishing, setFinishing] = useState(false);
+  async function finishVisit() {
+    if (finishing || loading || busyRecordId) return;
+    const pendingAssessment = assessment || diagnosis || outcome || outcomeScore !== "";
+    const entries = Object.entries(drafts).filter(([, d]) => d.intervention || d.note || d.time);
+    if (pendingAssessment && !(assessment && diagnosis)) return alert("Complete the pending nursing assessment and diagnosis first.");
+    if (entries.some(([, d]) => !d.intervention)) return alert("Select an intervention for each pending note or time.");
+    if (!window.confirm("Complete encounter #" + encounterId + " and save its final summary?")) return;
+    setFinishing(true);
+    try {
+      if (pendingAssessment && !(await addAssessmentRecord())) return;
+      for (const [id] of entries) {
+        if (!(await addIntervention(id))) return;
+      }
+      await completeVisit(encounterId);
+      navigate(`/patients/${patientId}/encounters`, { replace: true });
+    } catch {
+      alert("Completion could not be confirmed. Retry to check or finish this same encounter.");
+    } finally {
+      setFinishing(false);
+    }
+  }
+
   /* ================= RENDER ================= */
   if (!patientId) {
     return (
@@ -308,7 +297,7 @@ export default function Nursing() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50 p-6">
-      <div className="w-full bg-white/90 backdrop-blur rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+      <div inert={finishing} className="w-full bg-white/90 backdrop-blur rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
         <SectionHeader title="Nursing" />
 
         <div className="p-8 space-y-8">
@@ -606,6 +595,9 @@ export default function Nursing() {
         <button type="button" disabled={!encounterId || !activePatient?.id || !doctor?.id}
           className="mt-4 rounded-xl bg-blue-900 px-5 py-3 text-white disabled:opacity-50"
           onClick={() => setShowSummary(true)}>Preview Encounter Summary</button>
+        <button type="button" disabled={loading || !!busyRecordId || finishing}
+          className="ml-3 rounded-xl bg-green-800 px-5 py-3 text-white disabled:opacity-50"
+          onClick={finishVisit}>{finishing ? "Saving…" : "Save Entire Encounter"}</button>
         {showSummary && encounterId && activePatient?.id && doctor?.id && (
           <PrescriptionPaper key={`${activePatient.id}-${encounterId}-${doctor.id}`} summary
             patient={activePatient} doctor={doctor} encounterId={encounterId}

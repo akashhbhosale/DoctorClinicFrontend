@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import usePatientList, { patientError } from "../../hooks/usePatientList";
+import http from "../../api/http";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import SectionHeader from "../../components/SectionHeader";
 import ConfirmModal from "../../components/ConfirmModal";
@@ -8,108 +10,29 @@ import { usePatient } from "../../context/PatientContext";
 export default function AllPatients() {
   const navigate = useNavigate();
 
-  const [patients, setPatients] = useState([]);
-  const [page, setPage] = useState(0);
-  const [size, setSize] = useState(10);
-  const [totalPages, setTotalPages] = useState(0);
-  const [totalElements, setTotalElements] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [search, setSearch] = useState("");
+  const location = useLocation();
+  const search = new URLSearchParams(location.search).get("search") || "";
+  const { setActivePatient } = usePatient();
+  const { patients, page, setPage, totalPages, loading, error, refresh } = usePatientList(false, search);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
-  const location = useLocation();
-  const { setActivePatient } = usePatient();
-  const token = localStorage.getItem("token");
+  const [saving, setSaving] = useState(false);
 
-  const fetchPatients = async () => {
+  async function confirmAction() {
+    if (saving || !selectedPatient) return;
+    setSaving(true);
     try {
-      const token = localStorage.getItem("token");
-      const params = new URLSearchParams(location.search);
-      const searchParam = params.get("search") || "";
-
-      let url = "";
-
-      if (searchParam.trim() === "") {
-        url = `http://localhost:8080/api/patients?page=${page}&size=${size}`;
-      } else {
-        url = `http://localhost:8080/api/patients/search?query=${encodeURIComponent(
-          searchParam
-        )}&page=${page}&size=${size}`;
-      }
-
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const data = await response.json();
-
-      setPatients(data.content);
-      setTotalPages(data.totalPages);
-      setTotalElements(data.totalElements);
-    } catch (error) {
-      console.error("Error fetching patients:", error);
-    }
-  };
-
-  const handleSearch = () => {
-    setPage(0);
-  };
-
-  useEffect(() => {
-    fetchPatients();
-  }, [page, size, location.search]);
-
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this patient?"))
-      return;
-
-    try {
-      await fetch(`http://localhost:8080/api/patients/delete/${id}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      fetchPatients();
-    } catch (error) {
-      alert("Delete failed");
-    }
-  };
-
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const searchParam = params.get("search");
-
-    if (searchParam) {
-      setSearch(searchParam);
-      setPage(0);
-    }
-  }, [location.search]);
-
-  const handleDeleteConfirm = async () => {
-    try {
-      const token = localStorage.getItem("token");
-
-      await fetch(
-        `http://localhost:8080/api/patients/delete/${selectedPatient.id}`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
+      await http.delete(`/api/patients/delete/${selectedPatient.id}`);
+      setActivePatient(current => String(current?.id) === String(selectedPatient.id) ? null : current);
       setIsModalOpen(false);
       setSelectedPatient(null);
-      fetchPatients(); // refresh list
+      refresh();
     } catch (error) {
-      console.error("Error deleting patient:", error);
+      window.alert(patientError(error, "The change could not be confirmed. Refresh the list and try again."));
+    } finally {
+      setSaving(false);
     }
-  };
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 via-white to-blue-50 p-6">
@@ -126,7 +49,7 @@ export default function AllPatients() {
                 placeholder="Search by Name, ABHA or Mobile..."
                 value={search}
                 onChange={(e) => {
-                  setSearch(e.target.value);
+                  setPage(0);
                   navigate(
                     `/patients?search=${encodeURIComponent(e.target.value)}`
                   );
@@ -145,6 +68,8 @@ export default function AllPatients() {
             </button>
           </div>
 
+          {loading && <p role="status">Loading patients…</p>}
+          {error && <p role="alert">{error} <button onClick={refresh} className="underline">Retry</button></p>}
           {/* TABLE */}
           <div className="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
             <table className="w-full text-sm text-left">
@@ -159,7 +84,7 @@ export default function AllPatients() {
               </thead>
 
               <tbody>
-                {patients.map((patient, index) => (
+                {!loading && patients.map((patient, index) => (
                   <tr
                     key={patient.id}
                     className={`border-t hover:bg-blue-50 transition ${
@@ -220,7 +145,7 @@ export default function AllPatients() {
       hover:bg-red-200 
       transition duration-200"
                         >
-                          Delete
+                          Archive
                         </button>
                       </div>
                     </td>
@@ -233,12 +158,12 @@ export default function AllPatients() {
           {/* PAGINATION */}
           <div className="flex justify-between items-center px-6 py-4 border-t bg-slate-50">
             <span className="text-sm text-slate-600">
-              Showing page {page + 1} of {totalPages}
+              {totalPages > 0 ? `Showing page ${page + 1} of ${totalPages}` : ""}
             </span>
 
             <div className="flex gap-2">
               <button
-                disabled={page === 0}
+                disabled={loading || page === 0}
                 onClick={() => setPage((prev) => prev - 1)}
                 className="px-3 py-1 border rounded-lg disabled:opacity-50"
               >
@@ -246,7 +171,7 @@ export default function AllPatients() {
               </button>
 
               <button
-                disabled={page === totalPages - 1}
+                disabled={loading || page + 1 >= totalPages}
                 onClick={() => setPage((prev) => prev + 1)}
                 className="px-3 py-1 border rounded-lg disabled:opacity-50"
               >
@@ -261,9 +186,11 @@ export default function AllPatients() {
       <ConfirmModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onConfirm={handleDeleteConfirm}
-        title="Delete Patient"
-        message={`Are you sure you want to delete ${selectedPatient?.fullName}? This action cannot be undone.`}
+        busy={saving}
+        onConfirm={confirmAction}
+        title="Archive Patient"
+        confirmLabel="Archive"
+        message={`Archive ${selectedPatient?.fullName} (ID ${selectedPatient?.id})? Their encounters are retained. You can restore them from Archived Patients.`}
       />
     </div>
   );
